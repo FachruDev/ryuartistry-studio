@@ -1,0 +1,20 @@
+{
+  "id": "asset-reel",
+  "version": "1.0.0",
+  "title": "Rubrik aset reels Facebook (Kechlyn)",
+  "appliesTo": ["reel"],
+  "instructions": "Nilai video final dari Linda terhadap storyboard yang disetujui. Semua hard gate harus true agar bisa lolos. Beri skor bulat 1-10 untuk setiap kriteria. Untuk setiap kriteria dengan skor di bawah 8, wajib tulis masalahnya dan saran perbaikan yang konkret (sebutkan scene dan detik bila bisa). Jika tidak lolos, wajib isi diagnosis: execution, infeasible, atau weak_idea. Walau lolos, tetap beri minimal satu saran peningkatan.",
+  "gates": [
+    { "id": "licensed_media", "label": "Tidak ada musik/klip berhak cipta tanpa lisensi" },
+    { "id": "no_misleading_claims", "label": "Tidak ada klaim menyesatkan" },
+    { "id": "ai_label_ready", "label": "Label konten AI siap dipasang" }
+  ],
+  "criteria": [
+    { "id": "hook", "label": "Hook 3 detik pertama", "weight": 0.25 },
+    { "id": "retention", "label": "Retensi (tempo, tidak ada bagian membosankan)", "weight": 0.20 },
+    { "id": "storyboard_match", "label": "Kesesuaian dengan storyboard", "weight": 0.15 },
+    { "id": "audio", "label": "Kualitas audio & voiceover", "weight": 0.15 },
+    { "id": "visual", "label": "Kualitas visual & keterbacaan teks", "weight": 0.15 },
+    { "id": "originality", "label": "Orisinalitas / nilai tambah", "weight": 0.10 }
+  ]
+}

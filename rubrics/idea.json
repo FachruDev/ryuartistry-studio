@@ -1,0 +1,19 @@
+{
+  "id": "idea",
+  "version": "1.0.0",
+  "title": "Rubrik ide (Lukas)",
+  "appliesTo": ["image", "reel"],
+  "instructions": "Nilai brief ide dari Shion. Semua hard gate harus true agar bisa lolos. Beri skor bulat 1-10 untuk setiap kriteria. Untuk setiap kriteria dengan skor di bawah 8, wajib tulis masalahnya dan saran perbaikan yang konkret di feedback. Walau ide lolos, tetap beri minimal satu saran peningkatan.",
+  "gates": [
+    { "id": "no_ip", "label": "Tidak memakai merek, logo, karakter berhak cipta, orang nyata, atau gaya seniman tertentu" },
+    { "id": "fits_niche", "label": "Sesuai niche/kategori platform" },
+    { "id": "not_duplicate", "label": "Tidak mirip ide di idea_graveyard atau yang sudah dipublikasi" }
+  ],
+  "criteria": [
+    { "id": "research_backed", "label": "Didukung riset (permintaan tinggi, persaingan rendah)", "weight": 0.30 },
+    { "id": "commercial_value", "label": "Kegunaan komersial / nilai bagi penonton", "weight": 0.25 },
+    { "id": "uniqueness", "label": "Keunikan dibanding yang sudah ada", "weight": 0.20 },
+    { "id": "feasibility", "label": "Dapat dieksekusi dengan baik oleh tool yang tersedia", "weight": 0.15 },
+    { "id": "clarity", "label": "Kejelasan brief untuk eksekutor", "weight": 0.10 }
+  ]
+}
