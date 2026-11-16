@@ -1,20 +1,38 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createStudioServer } from "@/lib/mcp/server";
+import { mcpResourceUrl } from "@/lib/oauth/core";
+import { CORS, publicOrigin } from "@/lib/oauth/http";
+import { agentForAccessToken } from "@/lib/oauth/service";
 import { authenticate, recordAgentRequest } from "@/lib/studio/service";
 
 /**
- * Studio MCP endpoint (Streamable HTTP, stateless).
- * Each agent authenticates with `Authorization: Bearer <token>`; the token decides the role
- * and therefore which tools are exposed.
+ * Studio MCP endpoint (Streamable HTTP, stateless). Two ways in, both `Authorization: Bearer`:
+ * - OAuth 2.1 access tokens (Claude.ai, ChatGPT, Gemini, Grok apps), bound to one agent at consent;
+ * - static agent tokens (clients that let you set headers: Claude Code, Gemini CLI, xAI API).
+ * The agent decides which tools are exposed.
  */
 async function handle(request: Request): Promise<Response> {
+  const origin = publicOrigin(request.headers, request.url);
   const auth = request.headers.get("authorization") ?? "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-  const agent = token ? await authenticate(token) : null;
+  const agent = !token
+    ? null
+    : token.startsWith("rsat_")
+      ? await agentForAccessToken(token, mcpResourceUrl(origin))
+      : await authenticate(token);
   if (!agent) {
+    // RFC 9728: point the client at our OAuth metadata so it can start the sign-in flow.
+    const metadata = `${origin}/.well-known/oauth-protected-resource/api/mcp`;
     return Response.json(
-      { jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized: token agen tidak valid" }, id: null },
-      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="ryuartistry-studio"' } },
+      { jsonrpc: "2.0", error: { code: -32001, message: token ? "Unauthorized: token tidak valid atau kedaluwarsa" : "Unauthorized: butuh login OAuth" }, id: null },
+      {
+        status: 401,
+        headers: {
+          ...CORS,
+          "Access-Control-Expose-Headers": "WWW-Authenticate",
+          "WWW-Authenticate": `Bearer resource_metadata="${metadata}"${token ? ', error="invalid_token"' : ""}`,
+        },
+      },
     );
   }
 
@@ -46,3 +64,7 @@ async function handle(request: Request): Promise<Response> {
 export const POST = handle;
 export const GET = handle;
 export const DELETE = handle;
+
+export function OPTIONS() {
+  return new Response(null, { status: 204, headers: { ...CORS, "Access-Control-Expose-Headers": "WWW-Authenticate, mcp-session-id" } });
+}

@@ -3,7 +3,10 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 import { AGENT_KITS, CRON_HINT } from "@/lib/studio/agent-kit";
 import { agentsOverview, lastTickAt } from "@/lib/studio/service";
+import { publicOrigin } from "@/lib/oauth/http";
+import { listConnections } from "@/lib/oauth/service";
 import { RotateTokenForm, RunTickButton } from "../_components/automation-forms";
+import { AgentConnections, ConnectGuide } from "../_components/mcp-connect";
 import { CopyText } from "../_components/reels-forms";
 import { Badge, PageHeader, Panel, Section, fmtDate, type Tone } from "../_components/ui";
 
@@ -40,9 +43,9 @@ export default function AgentsPage() {
 async function AgentsData() {
   await connection();
   const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
+  const origin = publicOrigin(h);
   const mcpUrl = `${origin}/api/mcp`;
-  const [agents, tick] = await Promise.all([agentsOverview(), lastTickAt()]);
+  const [agents, tick, connections] = await Promise.all([agentsOverview(), lastTickAt(), listConnections()]);
   const team = agents.filter((a) => a.role !== "admin");
 
   return (
@@ -97,7 +100,11 @@ async function AgentsData() {
                         <span className="text-text">Aplikasi:</span> {kit.app}
                       </p>
                       <div>
-                        <p className="mb-1.5 text-xs text-subtle">URL server MCP (header Authorization: Bearer &lt;token {a.name}&gt;)</p>
+                        <p className="mb-1.5 text-xs text-subtle">Koneksi OAuth</p>
+                        <AgentConnections connections={connections.filter((c) => c.agentId === a.id)} />
+                      </div>
+                      <div>
+                        <p className="mb-1.5 text-xs text-subtle">Atau header (Claude Code, Gemini CLI, API xAI): URL ini + Authorization: Bearer &lt;token {a.name}&gt;</p>
                         <CopyText text={mcpUrl} label={`URL MCP untuk ${a.name}`} copyLabel="Salin URL" rows={1} />
                       </div>
                       <div>
@@ -113,6 +120,8 @@ async function AgentsData() {
           })}
         </div>
       </Section>
+
+      <ConnectGuide mcpUrl={mcpUrl} delay={120} />
 
       <Section eyebrow="Penjadwal server" title="Pengecekan otomatis (cron)" delay={160}>
         <Panel coreClassName="grid gap-6 p-6 md:grid-cols-12">

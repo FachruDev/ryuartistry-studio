@@ -24,6 +24,8 @@
 | `lib/studio/agent-kit.ts` | Jadwal dan prompt terjadwal per agen |
 | `app/api/cron/tick` | Endpoint cron pengecekan berkala |
 | `scripts/smoke-automation.ts` | Uji end-to-end otomasi |
+| `lib/oauth/`, `app/oauth/`, `app/.well-known/` | OAuth 2.1 untuk MCP: discovery, pendaftaran klien, persetujuan (pilih agen), token + test |
+| `scripts/smoke-oauth.ts` | Uji end-to-end OAuth (discovery → token → MCP → rotasi → cabut) |
 | `lib/studio/video-probe.ts`, `lib/studio/video-inspect.ts` | Membaca reels dengan ffprobe/ffmpeg (codec, durasi, loudness, keyframe) + test |
 | `lib/studio/reels.ts` | Aturan storyboard dan metadata reels + test |
 | `app/dashboard/kit/adobe-csv` | Unduhan CSV metadata untuk Adobe Stock |
@@ -76,7 +78,24 @@ bun --env-file=.env --env-file=.env.local --env-file=.env.agents.local scripts/s
 
 ## Menghubungkan agen
 
-URL MCP: `https://<domain>/api/mcp` dengan header `Authorization: Bearer <token agen>`.
+URL MCP: `https://<domain>/api/mcp`. Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
+
+### 1. OAuth 2.1 — untuk aplikasi chat (Claude.ai, ChatGPT, Gemini app, Grok)
+
+Tempel URL MCP sebagai konektor custom; biarkan pengaturan OAuth kosong. Alurnya mengikuti spesifikasi otorisasi MCP:
+
+1. Server menjawab `401` dengan `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/api/mcp"`.
+2. Aplikasi membaca metadata resource (RFC 9728) dan authorization server (`/.well-known/oauth-authorization-server`, RFC 8414).
+3. Aplikasi mendaftar sendiri lewat `/oauth/register` (Dynamic Client Registration, RFC 7591) atau memakai Client ID Metadata Document (client_id berupa URL HTTPS).
+4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu **memilih agen** yang diwakili aplikasi itu (mis. Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
+5. Token: PKCE S256 wajib; access token 1 jam, refresh token 30 hari dan **berotasi**; token terikat ke URL MCP ini (RFC 8707). Refresh token yang dipakai ulang atau kode yang dipakai dua kali mencabut seluruh koneksi itu.
+6. Cabut kapan saja: halaman **Agen** → kit koneksi agen → tombol **Cabut** (atau aplikasi memanggil `/oauth/revoke`).
+
+Semua token, kode, dan secret klien disimpan hanya sebagai hash sha256. Isi `STUDIO_PUBLIC_URL` (mis. `https://studio.domainmu.com`) di production agar URL issuer/resource tetap, tidak bergantung header permintaan.
+
+### 2. Token statis — untuk klien yang bisa mengatur header
+
+Claude Code, Gemini CLI, dan API xAI (Remote MCP) bisa memakai token agen dari kit koneksi (`Authorization: Bearer rs_<peran>_…`). Ganti token dari halaman Agen bila bocor.
 
 Contoh konfigurasi klien yang mendukung remote MCP via HTTP (format bervariasi per aplikasi):
 

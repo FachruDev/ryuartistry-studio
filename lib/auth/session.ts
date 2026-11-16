@@ -59,7 +59,13 @@ export function verifySessionToken(token: string | undefined | null, now = Date.
   }
 }
 
-/** Only same-site dashboard paths are valid post-login destinations (no open redirects). */
+/**
+ * Only same-site destinations are valid after login (no open redirects): dashboard pages, and
+ * the OAuth consent page with its query string (an AI app waiting for approval).
+ */
 export function safeNext(next: unknown): string {
-  return typeof next === "string" && /^\/dashboard(\/[\w\-/]*)?(\?[\w=&\-]*)?$/.test(next) ? next : "/dashboard";
+  if (typeof next !== "string") return "/dashboard";
+  if (/^\/dashboard(\/[\w\-/]*)?(\?[\w=&\-]*)?$/.test(next)) return next;
+  if (/^\/oauth\/authorize\?[\w\-.~%&=+:/]+$/.test(next)) return next;
+  return "/dashboard";
 }

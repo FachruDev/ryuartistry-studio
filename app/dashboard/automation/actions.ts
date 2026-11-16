@@ -2,6 +2,7 @@
 
 import { refresh } from "next/cache";
 import { requireSession } from "@/lib/auth/server";
+import { revokeConnection } from "@/lib/oauth/service";
 import { getAutomationSettings, markNotificationsRead, rotateAgentToken, runAutomationTick, saveAutomationSettings } from "@/lib/studio/service";
 
 export type SettingsState = { ok?: string; error?: string } | null;
@@ -65,5 +66,11 @@ export async function runTickAction(): Promise<TickState> {
 export async function markAllReadAction(): Promise<void> {
   await requireSession();
   await markNotificationsRead();
+  refresh();
+}
+
+export async function revokeConnectionAction(formData: FormData): Promise<void> {
+  await requireSession();
+  await revokeConnection(String(formData.get("familyId")));
   refresh();
 }
