@@ -3,8 +3,9 @@ import postgres from "postgres";
 import * as coreSchema from "./schema";
 import * as authSchema from "./schema-auth";
 import * as automationSchema from "./schema-automation";
+import * as oauthSchema from "./schema-oauth";
 
-const schema = { ...coreSchema, ...automationSchema, ...authSchema };
+const schema = { ...coreSchema, ...automationSchema, ...authSchema, ...oauthSchema };
 
 function createClient() {
   const url = process.env.DATABASE_URL;

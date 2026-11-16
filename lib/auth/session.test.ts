@@ -28,6 +28,15 @@ test("open-redirect guard", () => {
   expect(safeNext("//evil.example")).toBe("/dashboard");
 });
 
+test("login may return to the OAuth consent page, but nowhere external", () => {
+  const consent = "/oauth/authorize?response_type=code&client_id=rsc_abc&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback&state=x";
+  expect(safeNext(consent)).toBe(consent);
+  expect(safeNext("/oauth/authorize")).toBe("/dashboard");
+  expect(safeNext("/oauth/token?x=1")).toBe("/dashboard");
+  expect(safeNext("/oauth/authorize?<script>")).toBe("/dashboard");
+  expect(safeNext("//evil.example/oauth/authorize?a=b")).toBe("/dashboard");
+});
+
 test("env values pasted with quotes or spaces are cleaned; missing secret is reported", () => {
   process.env.SOME_VALUE = '  "abc"\n';
   expect(envValue("SOME_VALUE")).toBe("abc");
