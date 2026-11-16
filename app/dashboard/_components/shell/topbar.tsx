@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/app/_components/theme-toggle";
 import { activeItem, type NavCounts } from "./nav-config";
 import { NavLinks, TeamCard, UserCard } from "./sidebar";
+import { AccountMenu, NotificationsMenu, type TopbarNotification } from "./topbar-menus";
 
 /** Two lines that rotate into an X; transform-only so it stays on the compositor. */
 function MenuGlyph({ open }: { open: boolean }) {
@@ -65,7 +66,17 @@ function MobileDrawer({ open, onClose, counts, user }: { open: boolean; onClose:
 }
 
 /** Sticky glass bar floating above the content (not glued to the viewport edge). */
-export function Topbar({ counts, user }: { counts?: NavCounts; user?: string }) {
+export function Topbar({
+  counts,
+  user,
+  notifications = [],
+  unread = 0,
+}: {
+  counts?: NavCounts;
+  user?: string;
+  notifications?: TopbarNotification[];
+  unread?: number;
+}) {
   const pathname = usePathname();
   const item = activeItem(pathname);
   const [open, setOpen] = useState(false);
@@ -101,7 +112,11 @@ export function Topbar({ counts, user }: { counts?: NavCounts; user?: string }) 
               {counts.halted} siklus berhenti
             </a>
           )}
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <NotificationsMenu items={notifications} unread={unread} />
+            <ThemeToggle className="hidden sm:flex" />
+            {user && <AccountMenu user={user} />}
+          </div>
         </div>
       </header>
       <MobileDrawer open={open} onClose={close} counts={counts} user={user} />

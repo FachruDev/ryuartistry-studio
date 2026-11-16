@@ -9,6 +9,7 @@ import { assets, cycles, ideaGraveyard, ideas, publications, reviews, type Platf
 import { presignDownload } from "@/lib/storage";
 import { adobeFileName, buildAdobeCsv, validateAdobeMetadata } from "../adobe";
 import { assetFileName, validateReelMetadata } from "../reels";
+import { autoPublishDecision } from "../automation";
 import { ADOBE_CATEGORIES, AUTO_MODE_CRITERIA } from "../config";
 import { decideApproval } from "../workflow";
 import { StudioError, actorName, latestAsset, lockJob, moveJob, type Agent } from "./core";
@@ -30,7 +31,7 @@ export async function submitPublicationPrep(
     scheduledFor?: string;
   },
 ) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const job = await lockJob(tx, jobId, ["publish_prep"]);
     if (!input.aiLabel) throw new StudioError("Label AI wajib true untuk konten buatan AI");
 
@@ -80,8 +81,32 @@ export async function submitPublicationPrep(
       scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
     });
     await moveJob(tx, job, "awaiting_approval", actorName(agent), "Metadata publikasi siap, menunggu approval manusia");
-    return { publicationId: id, fileName, keywords: meta.keywords, hashtags, nextStatus: "awaiting_approval" as const };
+    return { publicationId: id, platform: job.platform, fileName, keywords: meta.keywords, hashtags };
   });
+  const auto = await maybeAutoApprove(result.publicationId, result.platform);
+  return { ...result, nextStatus: auto.auto ? ("scheduled" as const) : ("awaiting_approval" as const), autoPublish: auto };
+}
+
+/**
+ * Auto-publish (Phase 4): skips the human only when the operator switched it on AND the
+ * platform's calibration criteria hold right now. Loaded lazily to avoid an import cycle.
+ */
+async function maybeAutoApprove(publicationId: string, platform: Platform) {
+  const { getAutomationSettings } = await import("./automation");
+  const decision = autoPublishDecision(await getAutomationSettings(), platform, (await calibrationStats(platform)).readyForAutoMode);
+  if (!decision.auto) return decision;
+  await db.transaction(async (tx) => {
+    const [pub] = await tx.select().from(publications).where(eq(publications.id, publicationId)).for("update");
+    if (!pub || pub.status !== "awaiting_approval") return;
+    const job = await lockJob(tx, pub.jobId, ["awaiting_approval"]);
+    await tx
+      .update(publications)
+      .set({ status: "approved", autoApproved: true, approvedAt: new Date(), reviewerNote: decision.reason })
+      .where(eq(publications.id, publicationId));
+    await moveJob(tx, job, "scheduled", "server", decision.reason);
+    await tx.update(cycles).set({ status: "done" }).where(eq(cycles.id, job.cycleId));
+  });
+  return decision;
 }
 
 // ---------------------------------------------------------------------------
@@ -226,12 +251,14 @@ const HUMAN_REVIEWED = ["approved", "rejected", "submitted", "published", "platf
 
 export async function calibrationStats(platform: Platform) {
   const rows = await db
-    .select({ status: publications.status, human: publications.humanScore, agent: publications.agentScore })
+    .select({ status: publications.status, human: publications.humanScore, agent: publications.agentScore, auto: publications.autoApproved })
     .from(publications)
     .where(and(eq(publications.platform, platform), inArray(publications.status, [...HUMAN_REVIEWED])));
 
-  const reviewed = rows.length;
-  const rejectedByHuman = rows.filter((r) => r.status === "rejected").length;
+  // Human statistics only count items a human actually decided.
+  const human = rows.filter((r) => !r.auto);
+  const reviewed = human.length;
+  const rejectedByHuman = human.filter((r) => r.status === "rejected").length;
   const approvalRate = reviewed ? (reviewed - rejectedByHuman) / reviewed : null;
 
   const pairs = rows.filter((r) => r.human != null && r.agent != null);

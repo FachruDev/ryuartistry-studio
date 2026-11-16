@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { requireSession } from "@/lib/auth/server";
 import {
   decidePublication,
+  markNotificationsRead,
   markReelPosted,
   markSubmitted,
   recordPlatformResult,
@@ -60,4 +61,10 @@ export async function recordReelRestrictionAction(_prev: ReelActionState, formDa
   }
   refresh();
   return { ok: "Dicatat sebagai dibatasi Meta" };
+}
+
+export async function markNotificationsReadAction(): Promise<void> {
+  await requireSession();
+  await markNotificationsRead();
+  refresh();
 }

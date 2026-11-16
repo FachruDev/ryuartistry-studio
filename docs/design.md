@@ -1,6 +1,6 @@
 # Ryuartistry Studio — Dokumen Desain
 
-Status: **Draf v0.5** (Fase 0–3 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
+Status: **Draf v0.6** (Fase 0–4 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
 
 Studio konten otomatis berbasis multi-agen. Agen-agen AI bekerja dalam siklus riset → ide → review → eksekusi → review → publikasi. Mereka terhubung lewat **MCP server milik sendiri (`ryuartistry-studio`)** yang menjadi "kantor": antrian kerja, aturan, dan arsip.
 
@@ -330,7 +330,7 @@ Data performa adalah sinyal utama yang menunjukkan ide mana yang benar-benar men
 | **1 — Gambar manual-assist** ✅ | Alur gambar lengkap, pemeriksaan file asli + cek duplikat, approval manusia dengan skor, kit upload + CSV Adobe, pencatatan hasil Adobe, kalibrasi rubrik, playbook agen |
 | **2 — Riset & rollup** ✅ | Jadwal riset WIB, sesi per model per slot, daily merge + skor peluang, rollup mingguan/bulanan/tahunan dari data terstruktur, impor performa CSV, halaman Riset & Performa, tema terang/gelap |
 | **3 — Reels** ✅ | Storyboard gate dengan validasi durasi/hook, pembacaan video asli (ffprobe/ffmpeg: codec, 9:16, durasi, loudness, true peak, keyframe + cek duplikat), metadata reels, kit posting Facebook, pencatatan pembatasan Meta, impor tayangan per link, login sungguhan, panel admin sidebar + topbar |
-| **4 — Otomasi** | Scheduler stabil, pindahkan langkah yang sering jalan ke API, publikasi otomatis per platform |
+| **4 — Otomasi** ✅ | Tetap MCP (bukan API): agen berjalan sebagai scheduled task dengan kit koneksi per agen; heartbeat & log tool; anggaran harian/per job yang menghentikan agen; publikasi otomatis yang terkunci di syarat kalibrasi; cron pengecekan + notifikasi (+ webhook); sidebar ber-grup Otomasi yang bisa diciutkan dan menu notifikasi/akun di topbar |
 
 Syarat sebuah platform boleh publikasi otomatis (usulan):
 - ≥ 50 aset sudah melewati approval manusia;

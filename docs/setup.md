@@ -1,4 +1,4 @@
-# Setup & Operasional (Fase 0–3)
+# Setup & Operasional (Fase 0–4)
 
 ## Komponen
 
@@ -20,6 +20,10 @@
 | `lib/storage.ts` | S3 (bucket privat, URL presigned) |
 | `app/dashboard` | Panel admin (sidebar + topbar, tema terang/gelap): Ringkasan, Adobe Stock, Reels, Riset, Performa |
 | `app/login`, `lib/auth/` | Halaman login dan sesi cookie bertanda tangan + test |
+| `lib/studio/automation.ts`, `lib/studio/service/automation.ts`, `lib/db/schema-automation.ts` | Pengaturan, anggaran, publikasi otomatis, heartbeat, notifikasi, cron + test |
+| `lib/studio/agent-kit.ts` | Jadwal dan prompt terjadwal per agen |
+| `app/api/cron/tick` | Endpoint cron pengecekan berkala |
+| `scripts/smoke-automation.ts` | Uji end-to-end otomasi |
 | `lib/studio/video-probe.ts`, `lib/studio/video-inspect.ts` | Membaca reels dengan ffprobe/ffmpeg (codec, durasi, loudness, keyframe) + test |
 | `lib/studio/reels.ts` | Aturan storyboard dan metadata reels + test |
 | `app/dashboard/kit/adobe-csv` | Unduhan CSV metadata untuk Adobe Stock |
@@ -32,7 +36,7 @@
 | File | Isi | Di git? |
 |---|---|---|
 | `.env` | `DATABASE_URL`, kredensial S3 (`AWS_*`), opsional `S3_BUCKET_PRIVATE` (default `storage-private`) | Tidak |
-| `.env.local` | `STUDIO_DASHBOARD_USER`, `STUDIO_DASHBOARD_PASSWORD` (akun login), `STUDIO_SESSION_SECRET` (kunci tanda tangan cookie, minimal 32 karakter), `STUDIO_REELS_NICHE` (niche kanal Facebook), opsional `FFMPEG_PATH` / `FFPROBE_PATH` | Tidak |
+| `.env.local` | `CRON_SECRET` (untuk `/api/cron/tick`), `STUDIO_DASHBOARD_USER`, `STUDIO_DASHBOARD_PASSWORD` (akun login), `STUDIO_SESSION_SECRET` (kunci tanda tangan cookie, minimal 32 karakter), `STUDIO_REELS_NICHE` (niche kanal Facebook), opsional `FFMPEG_PATH` / `FFPROBE_PATH` | Tidak |
 | `.env.agents.local` | Token setiap agen (`STUDIO_TOKEN_SHION`, dst.) | Tidak |
 
 **Server butuh `ffmpeg` dan `ffprobe`** (untuk membaca reels: codec, durasi, loudness, keyframe). Di Windows: `winget install Gyan.FFmpeg`; di Linux: paket `ffmpeg`.
@@ -133,14 +137,33 @@ Semua tanggal memakai zona waktu studio **Asia/Jakarta (WIB)**. Slot riset: 1 pa
 
 **Niche kanal** (`STUDIO_REELS_NICHE`) wajib diisi sebelum produksi berjalan: Meta menurunkan monetisasi konten yang tidak orisinal dan diproduksi massal, jadi semua reel harus konsisten pada satu tema. Niche ditampilkan ke Rina dan Shion di konteks job.
 
+## Otomasi (Fase 4)
+
+Otomasi tetap berbasis MCP: setiap agen berjalan sebagai **scheduled task** di aplikasi chat-nya dan memanggil server. Server mengawasi, membatasi biaya, dan memberi tahu.
+
+1. **Hubungkan agen** di halaman **Agen**. Tiap agen punya kit koneksi: URL MCP, jadwal yang disarankan, dan prompt terjadwal yang tinggal ditempel (prompt pendek; isi kerjanya diambil dari `get_playbook`). Token bisa diganti dari halaman itu (token lama langsung mati, token baru tampil sekali).
+2. **Heartbeat.** Setiap permintaan MCP mencatat waktu terakhir agen aktif dan tool yang dipanggil. Agen tanpa aktivitas lebih dari `agentQuietHours` ditandai tidak aktif.
+3. **Anggaran** (halaman **Pengaturan**):
+   - batas harian per platform (hari studio, WIB): bila terlewati, `get_next_job` tidak memberikan job platform itu dan menjelaskan alasannya;
+   - batas per job: `report_cost` menghentikan job (`halted`) yang melewati batas dan membuat notifikasi kritis.
+4. **Publikasi otomatis** per platform: hanya berlaku bila sakelar aktif **dan** syarat kalibrasi tercapai saat itu (≥ 50 keputusan manusia, ≥ 90% disetujui, ≥ 80% diterima platform). Item yang disetujui otomatis ditandai `autoApproved` dan tidak dihitung sebagai keputusan manusia di statistik kalibrasi. Bila kalibrasi turun, approval manual otomatis berlaku lagi.
+5. **Cron** `GET /api/cron/tick` dengan `Authorization: Bearer <CRON_SECRET>`, tiap 15–30 menit. Mengecek: job macet di tahap agen, agen tidak aktif, slot riset terlewat, anggaran habis, siklus berhenti, kalibrasi siap mode otomatis, dan approval yang menunggu lebih dari sehari. Setiap masalah jadi notifikasi sekali saja (kunci dedupe), plus webhook HTTPS opsional (Discord/Slack) untuk peringatan dan kritis. Tombol "Jalankan Pengecekan Sekarang" di halaman Agen melakukan hal yang sama.
+
 ## Dashboard
 
-Panel admin dengan **sidebar** (Ringkasan · Produksi: Adobe Stock, Reels · Wawasan: Riset, Performa, lengkap dengan badge jumlah yang menunggu, tim agen, dan akun/keluar) dan **topbar** (judul halaman, peringatan siklus berhenti, ganti tema). Di layar kecil sidebar menjadi drawer dari tombol menu (Esc untuk menutup).
+Panel admin dengan **sidebar** dan **topbar**:
+
+- **Sidebar**: Studio (Ringkasan) · Produksi (Adobe Stock, Reels) · Wawasan (Riset, Performa) · Otomasi (Agen, Pengaturan), dengan badge jumlah yang menunggu, tim agen, dan akun/keluar. Tombol panah menciutkannya menjadi **deret ikon** (pilihan disimpan dan diterapkan sebelum halaman tampil). Di layar kecil sidebar menjadi drawer dari tombol menu.
+- **Topbar**: judul halaman, peringatan siklus berhenti, **menu notifikasi** (jumlah belum dibaca, 8 terbaru, tandai semua dibaca), ganti tema, dan **menu akun** (Agen & koneksi, Pengaturan otomasi, ganti tema, keluar). Menu bisa dipakai dengan keyboard: panah atas/bawah, Esc menutup, fokus kembali ke tombol.
+
+Halaman:
 
 - **Ringkasan**: KPI (pendapatan 30 hari kedua platform), approval lintas platform, siklus berhenti, pipeline, aktivitas.
 - **Adobe Stock**: kit upload + CSV, hasil moderasi, kalibrasi.
 - **Reels**: kit posting, reel terbit, kalibrasi.
 - **Riset** dan **Performa**: tab platform di URL (`?platform=facebook_reels`).
+- **Agen**: status, heartbeat, kit koneksi per agen, cron.
+- **Pengaturan**: pemakaian anggaran hari ini, aturan otomasi, riwayat notifikasi.
 
 **Login** di `/login` (desain terpisah, dua tema). Sesi berupa cookie bertanda tangan HMAC (`httpOnly`, `sameSite=lax`, `secure` di produksi) berlaku 7 hari; 5 kali salah dalam 15 menit mengunci percobaan dari alamat yang sama. Semua server action dan rute CSV memeriksa sesi lagi; tujuan setelah login (`?next=`) hanya boleh ke `/dashboard…`.
 
@@ -149,7 +172,9 @@ Tema terang dan gelap: mengikuti pengaturan sistem pada kunjungan pertama, bisa 
 ## Batasan saat ini
 
 - Format ekspor performa Meta yang sebenarnya belum diuji dengan file asli; parser menerima beberapa variasi nama kolom.
-- Posting ke Facebook masih manual lewat Meta; publikasi otomatis lewat Graph API butuh aplikasi Meta yang disetujui (Fase 4).
+- Posting ke Facebook dan upload ke Adobe tetap manual (lewat kit). Publikasi otomatis di studio berarti melewati approval manusia, bukan mengunggah ke platform: Graph API Meta butuh aplikasi yang disetujui Meta, dan Adobe hanya menyediakan SFTP + CSV.
+- Biaya hanya sejauh yang dilaporkan agen lewat `report_cost`; agen yang tidak melapor tidak terhitung dalam anggaran.
+- Dengan beberapa instance server, cron cukup dipanggil ke satu instance; dedupe notifikasi mencegah duplikat.
 - Batas login disimpan di memori server; dengan beberapa instance server, gunakan penyimpanan bersama.
 - Penggabungan topik memakai nama topik yang dinormalisasi (huruf kecil, tanpa tanda baca). Topik dengan kata berbeda tetapi bermakna sama tidak digabung otomatis; Rina sebaiknya memakai nama topik yang konsisten.
 - Format CSV penjualan Adobe yang sebenarnya belum diuji dengan file asli; parser menerima beberapa variasi nama kolom, tetapi cocokkan sekali dengan ekspor dari portal.

@@ -85,8 +85,7 @@ export function createStudioServer(agent: Agent): McpServer {
       },
     },
     run(async (a: { job_id?: string; description: string; cost_usd: number }) => {
-      await studio.reportCost(agent, { jobId: a.job_id, description: a.description, costUsd: a.cost_usd });
-      return { recorded: true };
+      return studio.reportCost(agent, { jobId: a.job_id, description: a.description, costUsd: a.cost_usd });
     }),
   );
 

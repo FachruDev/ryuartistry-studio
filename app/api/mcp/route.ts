@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createStudioServer } from "@/lib/mcp/server";
-import { authenticate } from "@/lib/studio/service";
+import { authenticate, recordAgentRequest } from "@/lib/studio/service";
 
 /**
  * Studio MCP endpoint (Streamable HTTP, stateless).
@@ -16,6 +16,16 @@ async function handle(request: Request): Promise<Response> {
       { jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized: token agen tidak valid" }, id: null },
       { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="ryuartistry-studio"' } },
     );
+  }
+
+  // Heartbeat + which tool was called (for the Agents page and the health tick). Never blocks the call.
+  if (request.method === "POST") {
+    const tool = await request
+      .clone()
+      .json()
+      .then((b: { method?: string; params?: { name?: string } }) => (b?.method === "tools/call" ? (b.params?.name ?? null) : null))
+      .catch(() => null);
+    await recordAgentRequest(agent.id, tool).catch((e) => console.error("[mcp] activity log failed", e));
   }
 
   const server = createStudioServer(agent);

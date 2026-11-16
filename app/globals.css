@@ -155,3 +155,31 @@ h2,
 h3 {
   text-wrap: balance;
 }
+
+/*
+ * Admin shell. The sidebar collapses to an icon rail on desktop; the choice is applied before
+ * first paint by the inline script in app/layout.tsx (data-sidebar on <html>).
+ */
+@media (min-width: 1024px) {
+  .shell-sidebar { width: 264px; }
+  .shell-content { padding-left: 280px; }
+  :root[data-sidebar="collapsed"] .shell-sidebar { width: 84px; }
+  :root[data-sidebar="collapsed"] .shell-content { padding-left: 100px; }
+  :root[data-sidebar="collapsed"] .sb-hide { display: none; }
+  :root[data-sidebar="collapsed"] .sb-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  :root[data-sidebar="collapsed"] .sb-center { justify-content: center; padding-left: 0; padding-right: 0; }
+  :root[data-sidebar="collapsed"] .sb-stack { flex-direction: column; }
+  :root[data-sidebar="collapsed"] .sb-collapse-icon { transform: rotate(180deg); }
+}
+
+.sb-dot { display: none; }
+@media (min-width: 1024px) {
+  :root[data-sidebar="collapsed"] .sb-dot { display: block; }
+}

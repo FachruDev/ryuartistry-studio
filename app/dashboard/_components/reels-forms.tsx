@@ -5,11 +5,11 @@ import { markReelPostedAction, recordReelRestrictionAction, type ReelActionState
 import { IconCheck } from "./icons";
 import { ButtonIcon, btn, input } from "./ui";
 
-export function CopyText({ text, label }: { text: string; label: string }) {
+export function CopyText({ text, label, copyLabel = "Salin caption & hashtag", rows = 5 }: { text: string; label: string; copyLabel?: string; rows?: number }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex flex-col gap-2">
-      <textarea readOnly value={text} rows={5} aria-label={label} className={`${input} resize-none font-mono text-xs leading-relaxed`} />
+      <textarea readOnly value={text} rows={rows} aria-label={label} className={`${input} resize-none font-mono text-xs leading-relaxed`} />
       <button
         type="button"
         className={`${btn.plain} self-start`}
@@ -23,7 +23,7 @@ export function CopyText({ text, label }: { text: string; label: string }) {
           }
         }}
       >
-        {copied ? "Tersalin" : "Salin caption & hashtag"}
+        {copied ? "Tersalin" : copyLabel}
       </button>
       <span aria-live="polite" className="sr-only">
         {copied ? "Caption tersalin ke clipboard" : ""}

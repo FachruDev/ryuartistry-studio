@@ -1,5 +1,5 @@
 /** Queue, idea and idea-review stages (Shion and Lukas). */
-import { and, asc, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, lt, notInArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { cycles, ideaGraveyard, ideas, jobs, researchReports, reviews, type AgentRole } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
@@ -18,6 +18,7 @@ import {
   rubricForAsset,
   type Agent,
 } from "./core";
+import { blockedPlatforms } from "./automation";
 import { recentPlatformRejections } from "./publishing";
 
 // ---------------------------------------------------------------------------
@@ -29,13 +30,21 @@ export async function claimNextJob(agent: Agent, role: Exclude<AgentRole, "admin
   if (agent.role !== role && agent.role !== "admin") {
     throw new StudioError(`Token ini untuk peran "${agent.role}", bukan "${role}"`);
   }
+  // Platforms whose daily budget is used up are skipped until the next studio day.
+  const blocked = await blockedPlatforms();
   const claimed = await db.transaction(async (tx) => {
     const now = new Date();
     for (const status of ROLE_QUEUES[role]) {
       const [job] = await tx
         .select()
         .from(jobs)
-        .where(and(eq(jobs.status, status), or(isNull(jobs.claimedUntil), lt(jobs.claimedUntil, now))))
+        .where(
+          and(
+            eq(jobs.status, status),
+            or(isNull(jobs.claimedUntil), lt(jobs.claimedUntil, now)),
+            blocked.length ? notInArray(jobs.platform, blocked) : undefined,
+          ),
+        )
         .orderBy(asc(jobs.updatedAt))
         .limit(1)
         .for("update", { skipLocked: true });
@@ -49,6 +58,11 @@ export async function claimNextJob(agent: Agent, role: Exclude<AgentRole, "admin
     }
     return null;
   });
+  if (!claimed && blocked.length) {
+    throw new StudioError(
+      `Tidak ada job yang bisa diambil. Anggaran harian habis untuk: ${blocked.join(", ")}. Berhenti dulu; antrian dibuka lagi besok (WIB) atau setelah batas dinaikkan.`,
+    );
+  }
   return claimed ? getJobContext(claimed) : null;
 }
 

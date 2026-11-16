@@ -107,6 +107,8 @@ export const agents = pgTable("agents", {
   /** sha256 hex of the bearer token. The token itself is never stored. */
   tokenHash: text("token_hash").notNull().unique(),
   active: boolean("active").notNull().default(true),
+  /** Last authenticated MCP request from this agent (heartbeat). */
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   ...timestamps,
 });
 
@@ -311,6 +313,8 @@ export const publications = pgTable("publications", {
   reviewerNote: text("reviewer_note"),
   /** Human 1-10 score given at approval time, used to calibrate Kechlyn's rubric. */
   humanScore: smallint("human_score"),
+  /** Approved by the auto-publish rule instead of a human (excluded from calibration). */
+  autoApproved: boolean("auto_approved").notNull().default(false),
   /** Score Kechlyn gave the approved asset version, copied for calibration. */
   agentScore: real("agent_score"),
   platformNote: text("platform_note"),

@@ -1,4 +1,4 @@
-export type NavCounts = { approvals: number; adobe: number; reels: number; halted: number };
+export type NavCounts = { approvals: number; adobe: number; reels: number; halted: number; quietAgents?: number };
 
 export type NavItem = {
   href: string;
@@ -25,6 +25,13 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/dashboard/research", label: "Riset", hint: "Jadwal Rina, peluang, dan rollup" },
       { href: "/dashboard/performance", label: "Performa", hint: "Penjualan, tayangan, dan keyword" },
+    ],
+  },
+  {
+    label: "Otomasi",
+    items: [
+      { href: "/dashboard/agents", label: "Agen", hint: "Status, jadwal, dan kit koneksi MCP", count: "quietAgents" },
+      { href: "/dashboard/automation", label: "Pengaturan", hint: "Anggaran, publikasi otomatis, notifikasi" },
     ],
   },
 ];

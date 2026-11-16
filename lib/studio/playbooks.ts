@@ -10,7 +10,8 @@ const COMMON = `
 - Server yang menentukan alur. Setelah setiap submit, baca \`nextStatus\` dan \`reason\` di hasilnya.
 - Kalau tool mengembalikan error, baca pesannya; biasanya berisi daftar yang perlu diperbaiki. Perbaiki lalu kirim ulang.
 - Selalu baca SEMUA review sebelumnya di konteks job (\`reviews\`), \`ideaGraveyard\`, dan \`platformRejections\`. Jangan ulangi masalah yang sudah pernah dicatat.
-- Laporkan perkiraan biaya model/tool dengan \`report_cost\` bila tahu angkanya.
+- Laporkan perkiraan biaya model/tool dengan \`report_cost\` bila tahu angkanya. Jika hasilnya \`jobHalted: true\`, job itu melewati batas biaya dan sudah dihentikan: jangan lanjutkan.
+- Jika \`get_next_job\` menjawab anggaran harian habis, akhiri shift tanpa mencoba lagi.
 - Satu shift = kerjakan job sampai antrian kosong (get_next_job mengembalikan null) atau maksimal 10 job.
 `;
 

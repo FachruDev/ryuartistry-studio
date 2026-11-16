@@ -17,7 +17,9 @@ import {
 import { presignDownload } from "@/lib/storage";
 import { CYCLES_PER_DAILY_REPORT } from "../config";
 import { CHILD_LEVEL, isExactPeriod, overlaps, periodOf, studioToday, type ReportLevel } from "../research-periods";
-import { StudioError, openCycles, type Agent } from "./core";
+import { jobOverBudget } from "../automation";
+import { StudioError, moveJob, openCycles, type Agent } from "./core";
+import { getAutomationSettings, notify } from "./automation";
 
 // ---------------------------------------------------------------------------
 // Rina
@@ -213,16 +215,36 @@ export async function openCycleManually(platform: Platform, reportId: string | n
 // Misc
 // ---------------------------------------------------------------------------
 
+/** Records spend; a job that passes the per-job cap is halted so nobody keeps spending on it. */
 export async function reportCost(agent: Agent, input: { jobId?: string; description: string; costUsd: number }) {
-  await db.transaction(async (tx) => {
+  const s = await getAutomationSettings();
+  const halted = await db.transaction(async (tx) => {
     await tx.insert(usageCosts).values({ agentId: agent.id, jobId: input.jobId, description: input.description, costUsd: input.costUsd });
-    if (input.jobId) {
-      await tx
-        .update(jobs)
-        .set({ costUsd: sql`${jobs.costUsd} + ${input.costUsd}` })
-        .where(eq(jobs.id, input.jobId));
-    }
+    if (!input.jobId) return null;
+    const [job] = await tx
+      .update(jobs)
+      .set({ costUsd: sql`${jobs.costUsd} + ${input.costUsd}` })
+      .where(eq(jobs.id, input.jobId))
+      .returning();
+    if (!job) return null;
+    const terminal = ["halted", "archived", "published"].includes(job.status);
+    if (terminal || !jobOverBudget(job.costUsd, s.budget.perJobUsd)) return null;
+    await moveJob(tx, job, "halted", "server", `Biaya job $${job.costUsd.toFixed(2)} melewati batas $${s.budget.perJobUsd} per job`);
+    return job;
   });
+  if (halted) {
+    await notify(
+      {
+        key: `job-budget:${halted.id}`,
+        severity: "critical",
+        title: "Job dihentikan karena melewati batas biaya",
+        body: `Job ${halted.id.slice(0, 8)} menghabiskan $${halted.costUsd.toFixed(2)} (batas $${s.budget.perJobUsd}). Periksa apakah revisinya berputar-putar.`,
+        href: "/dashboard/automation",
+      },
+      s.webhookUrl,
+    );
+  }
+  return { recorded: true, jobHalted: Boolean(halted) };
 }
 
 export async function getIdeaGraveyard(platform: Platform, limit: number) {
