@@ -7,3 +7,4 @@ export * from "./pipeline";
 export * from "./execution";
 export * from "./publishing";
 export * from "./research";
+export * from "./research-insights";

@@ -4,13 +4,11 @@ import type { AgentRole } from "@/lib/db/schema";
 import { PLAYBOOKS } from "@/lib/studio/playbooks";
 import { RUBRICS, getRubric } from "@/lib/studio/rubrics";
 import * as studio from "@/lib/studio/service";
+import { levelSchema, platformSchema, run } from "./helpers";
+import { registerResearchTools } from "./tools-research";
 
 type Agent = studio.Agent;
 type Role = AgentRole;
-
-const platformSchema = z.enum(["adobe_stock", "facebook_reels"]);
-const levelSchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format tanggal YYYY-MM-DD");
 
 const reviewShape = {
   job_id: z.string().uuid(),
@@ -22,31 +20,8 @@ const reviewShape = {
   summary: z.string().min(1).describe("Ringkasan penilaian untuk eksekutor"),
 };
 
-function ok(data: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
-}
-
-function fail(e: unknown) {
-  const message = e instanceof Error ? e.message : String(e);
-  return { content: [{ type: "text" as const, text: message }], isError: true };
-}
-
-/** Wraps a handler so domain errors come back to the agent as readable tool errors. */
-function run<A>(fn: (args: A) => Promise<unknown>) {
-  return async (args: A) => {
-    try {
-      return ok(await fn(args));
-    } catch (e) {
-      if (!(e instanceof studio.StudioError) && !(e instanceof Error && e.message.startsWith("Review tidak valid"))) {
-        console.error("[mcp] tool error", e);
-      }
-      return fail(e);
-    }
-  };
-}
-
 const ROLE_INTRO: Record<Role, string> = {
-  rina: "Kamu Rina, agen riset pasar. Simpan temuan terstruktur per sesi (3 sesi sehari), lalu gabungkan jadi laporan harian; laporan harian membuka siklus produksi.",
+  rina: "Kamu Rina, agen riset pasar. Mulai setiap shift dengan get_research_schedule dan kerjakan semua yang jatuh tempo: sesi riset, laporan harian (membuka siklus produksi), dan rollup.",
   shion: "Kamu Shion, pembuat ide/skenario. Ambil job dengan get_next_job, baca riset, review sebelumnya, dan idea_graveyard, lalu kirim ide atau storyboard.",
   lukas: "Kamu Lukas, reviewer ide. Ambil job, nilai dengan rubrik yang disertakan, dan selalu beri masukan konkret.",
   linda: "Kamu Linda, eksekutor. Ambil job, baca brief dan semua feedback, buat aset, upload lewat create_asset_upload, lalu submit_asset.",
@@ -325,84 +300,7 @@ export function createStudioServer(agent: Agent): McpServer {
   }
 
   // --- Rina -----------------------------------------------------------------
-  if (can("rina")) {
-    server.registerTool(
-      "submit_research_session",
-      {
-        description:
-          "Simpan satu sesi riset (slot 1=pagi, 2=siang, 3=malam) beserta temuan terstruktur. Temuan tanpa sumber ditandai belum terverifikasi.",
-        inputSchema: {
-          platform: platformSchema,
-          day: dateSchema,
-          slot: z.number().int().min(1).max(3),
-          model: z.string().describe("Model yang melakukan riset, mis. claude / grok"),
-          notes: z.string().optional(),
-          findings: z.array(
-            z.object({
-              topic: z.string(),
-              keywords: z.array(z.string()).min(1),
-              demandScore: z.number().int().min(1).max(10),
-              competitionScore: z.number().int().min(1).max(10).describe("Rendah = sedikit pesaing = peluang"),
-              seasonality: z.string().describe('"evergreen" atau tanggal/nama event'),
-              sources: z.array(z.object({ url: z.string().url(), accessedAt: z.string() })),
-              confidence: z.number().int().min(1).max(10),
-              notes: z.string().optional(),
-            }),
-          ),
-        },
-      },
-      run(async (a: Parameters<typeof studio.submitResearchSession>[1]) => studio.submitResearchSession(agent, a)),
-    );
-
-    server.registerTool(
-      "list_findings",
-      {
-        description: "Semua temuan pada satu hari (dari ketiga sesi), untuk digabung menjadi laporan harian.",
-        inputSchema: { platform: platformSchema, day: dateSchema },
-      },
-      run(async (a: { platform: "adobe_stock" | "facebook_reels"; day: string }) => studio.listFindings(a)),
-    );
-
-    server.registerTool(
-      "publish_report",
-      {
-        description:
-          "Terbitkan laporan riset. daily: gabungan 3 sesi hari itu, otomatis membuka siklus produksi. weekly/monthly/yearly: rollup dari laporan di bawahnya (isi child_report_ids). opportunities = daftar peluang terstruktur untuk Shion.",
-        inputSchema: {
-          level: levelSchema,
-          platform: platformSchema,
-          period_start: dateSchema,
-          period_end: dateSchema,
-          summary: z.string().min(1),
-          opportunities: z.array(z.record(z.string(), z.unknown())).default([]),
-          finding_ids: z.array(z.string().uuid()).default([]),
-          child_report_ids: z.array(z.string().uuid()).default([]),
-        },
-      },
-      run(
-        async (a: {
-          level: "daily" | "weekly" | "monthly" | "yearly";
-          platform: "adobe_stock" | "facebook_reels";
-          period_start: string;
-          period_end: string;
-          summary: string;
-          opportunities: unknown[];
-          finding_ids: string[];
-          child_report_ids: string[];
-        }) =>
-          studio.publishReport({
-            level: a.level,
-            platform: a.platform,
-            periodStart: a.period_start,
-            periodEnd: a.period_end,
-            summary: a.summary,
-            opportunities: a.opportunities,
-            findingIds: a.finding_ids,
-            childReportIds: a.child_report_ids,
-          }),
-      ),
-    );
-  }
+  if (can("rina")) registerResearchTools(server, agent);
 
   // --- Admin ----------------------------------------------------------------
   if (agent.role === "admin") {

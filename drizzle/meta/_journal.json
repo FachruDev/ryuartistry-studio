@@ -15,6 +15,13 @@
       "when": 1794795048949,
       "tag": "0001_adobe_phase1",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794798952204,
+      "tag": "0002_research_phase2",
+      "breakpoints": true
     }
   ]
 }

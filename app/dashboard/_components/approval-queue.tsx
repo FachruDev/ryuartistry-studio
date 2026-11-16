@@ -1,74 +1,89 @@
 import { ADOBE_CATEGORIES } from "@/lib/studio/config";
 import type { dashboardSnapshot } from "@/lib/studio/service";
 import { decidePublicationAction } from "../actions";
-import { Empty, Section, card, input, primaryBtn, secondaryBtn } from "./ui";
+import { IconCheck, IconX } from "./icons";
+import { Badge, ButtonIcon, Empty, Panel, Section, btn, input } from "./ui";
 
 type Pending = Awaited<ReturnType<typeof dashboardSnapshot>>["pending"];
 
-export function ApprovalQueue({ pending }: { pending: Pending }) {
+export function ApprovalQueue({ pending, delay }: { pending: Pending; delay?: number }) {
   return (
-    <Section title={`Menunggu approval (${pending.length})`}>
+    <Section
+      eyebrow="Keputusanmu"
+      title="Menunggu approval"
+      aside={<Badge tone={pending.length ? "accent" : "neutral"}>{pending.length} item</Badge>}
+      delay={delay}
+    >
       {pending.length === 0 ? (
-        <Empty>Tidak ada yang menunggu.</Empty>
+        <Empty>Tidak ada yang menunggu. Kechlyn akan mengirim aset yang lolos ke sini.</Empty>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {pending.map(({ pub, asset, url }) => (
-            <article key={pub.id} className={card}>
-              {asset.contentType.startsWith("video/") ? (
-                <video src={url} controls className="max-h-96 w-full rounded bg-black object-contain" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element -- presigned URL from private storage
-                <img src={url} alt={pub.title} className="max-h-96 w-full rounded object-contain" />
-              )}
-              <div>
-                <h3 className="font-medium">{pub.title}</h3>
-                <p className="text-xs text-zinc-500">
-                  {pub.platform} · {asset.width}×{asset.height}
-                  {asset.durationSec ? ` · ${asset.durationSec}s` : ""}
-                  {pub.agentScore != null && ` · skor Kechlyn ${pub.agentScore}`}
-                </p>
-                {pub.fileName && <p className="font-mono text-xs text-zinc-500">{pub.fileName}</p>}
+            <Panel key={pub.id} coreClassName="flex flex-col overflow-hidden">
+              <div className="bg-core-muted p-3">
+                {asset.contentType.startsWith("video/") ? (
+                  <video src={url} controls className="max-h-80 w-full rounded-2xl bg-black object-contain" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- presigned URL from private storage
+                  <img src={url} alt={pub.title} className="max-h-80 w-full rounded-2xl object-contain" />
+                )}
               </div>
-              {pub.category && (
-                <p className="text-xs text-zinc-500">
-                  Kategori {pub.category}: {ADOBE_CATEGORIES[Number(pub.category)] ?? "?"}
-                </p>
-              )}
-              {pub.caption && <p className="whitespace-pre-wrap text-sm">{pub.caption}</p>}
-              {pub.keywords.length > 0 && (
-                <p className="text-xs text-zinc-500">
-                  <span className="font-medium">Keyword ({pub.keywords.length}):</span> {pub.keywords.join(", ")}
-                </p>
-              )}
-              {pub.hashtags.length > 0 && <p className="text-xs text-zinc-500">{pub.hashtags.join(" ")}</p>}
-              <form action={decidePublicationAction} className="flex flex-col gap-2">
-                <input type="hidden" name="publicationId" value={pub.id} />
-                <label className="flex items-center gap-2 text-sm">
-                  Skor kamu (1-10)
-                  <input
-                    type="number"
-                    name="humanScore"
-                    min={1}
-                    max={10}
-                    required
-                    className={`${input} w-20`}
-                    aria-describedby={`score-help-${pub.id}`}
-                  />
-                </label>
-                <p id={`score-help-${pub.id}`} className="text-xs text-zinc-500">
-                  Dipakai untuk mengkalibrasi rubrik Kechlyn.
-                </p>
-                <textarea name="note" placeholder="Catatan (wajib jika ditolak)" className={input} rows={2} />
-                <div className="flex gap-2">
-                  <button name="decision" value="approve" className={primaryBtn}>
-                    Setujui
-                  </button>
-                  <button name="decision" value="reject" className={secondaryBtn}>
-                    Tolak → Linda
-                  </button>
+              <div className="flex flex-col gap-4 p-5">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge>{pub.platform === "adobe_stock" ? "Adobe Stock" : "FB Reels"}</Badge>
+                    {pub.agentScore != null && <Badge tone="accent">Kechlyn {pub.agentScore}</Badge>}
+                    {pub.category && <Badge>{ADOBE_CATEGORIES[Number(pub.category)] ?? `Kategori ${pub.category}`}</Badge>}
+                  </div>
+                  <h3 className="mt-3 text-lg font-medium tracking-tight">{pub.title}</h3>
+                  <p className="mt-1 font-mono text-xs text-subtle">
+                    {pub.fileName ?? ""} · {asset.width}×{asset.height}
+                    {asset.durationSec ? ` · ${asset.durationSec}s` : ""}
+                  </p>
                 </div>
-              </form>
-            </article>
+                {pub.caption && <p className="whitespace-pre-wrap text-sm text-muted">{pub.caption}</p>}
+                {pub.keywords.length > 0 && (
+                  <p className="text-xs leading-relaxed text-muted">
+                    <span className="text-subtle">{pub.keywords.length} keyword · </span>
+                    {pub.keywords.join(", ")}
+                  </p>
+                )}
+                <form action={decidePublicationAction} className="flex flex-col gap-3 border-t border-hairline pt-4">
+                  <input type="hidden" name="publicationId" value={pub.id} />
+                  <div className="flex items-center gap-3">
+                    <label htmlFor={`score-${pub.id}`} className="text-sm text-muted">
+                      Skor kamu
+                    </label>
+                    <input
+                      id={`score-${pub.id}`}
+                      type="number"
+                      name="humanScore"
+                      min={1}
+                      max={10}
+                      required
+                      placeholder="1-10"
+                      className={`${input} w-24 font-mono`}
+                    />
+                    <span className="text-xs text-subtle">untuk kalibrasi Kechlyn</span>
+                  </div>
+                  <textarea name="note" placeholder="Catatan (wajib jika ditolak)" className={input} rows={2} />
+                  <div className="flex flex-wrap gap-2">
+                    <button name="decision" value="approve" className={btn.primary}>
+                      Setujui
+                      <ButtonIcon inverted>
+                        <IconCheck />
+                      </ButtonIcon>
+                    </button>
+                    <button name="decision" value="reject" className={btn.ghost}>
+                      Tolak ke Linda
+                      <ButtonIcon>
+                        <IconX />
+                      </ButtonIcon>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </Panel>
           ))}
         </div>
       )}

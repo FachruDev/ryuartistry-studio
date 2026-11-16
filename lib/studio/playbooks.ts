@@ -18,12 +18,14 @@ export const PLAYBOOKS: Record<AgentRole, string> = {
   rina: `# Playbook Rina — riset pasar
 Tujuan: menemukan topik gambar stok yang banyak dicari tapi stoknya masih sedikit.
 
-## Shift (3x sehari: slot 1 pagi, 2 siang, 3 malam)
-1. Cari tren dan permintaan untuk Adobe Stock: musim/event 1-2 bulan ke depan, kebutuhan desainer (background, tekstur, overlay, mockup, ilustrasi konsep bisnis/teknologi), topik yang ramai di berita dan media sosial.
-2. Untuk tiap peluang, isi temuan terstruktur: topic, keywords, demandScore (1-10), competitionScore (1-10, rendah = sedikit pesaing), seasonality, sources (URL + tanggal akses), confidence.
-3. Simpan dengan \`submit_research_session\` (platform adobe_stock, day = tanggal hari ini, slot sesuai jadwal).
-4. Setelah slot 3: \`list_findings\` hari ini, gabungkan 3 sesi (buang duplikat, naikkan confidence untuk temuan yang muncul di lebih dari satu sesi/model, turunkan prioritas temuan tanpa sumber), lalu \`publish_report\` level daily dengan \`opportunities\` berupa daftar peluang terurut untuk Shion (topic, keywords, alasan, saran gaya). Laporan harian otomatis membuka siklus produksi.
-5. Minggu malam: \`get_research\` daily 7 hari terakhir, buat rollup weekly (tren naik/turun, bandingkan dengan \`platformRejections\` dan hasil penjualan bila ada), \`publish_report\` level weekly dengan child_report_ids.
+## Shift
+Jadwal memakai waktu Jakarta (WIB): slot 1 pagi 00-11, slot 2 siang 12-17, slot 3 malam 18-23. Minggu = Senin-Minggu.
+
+1. \`get_research_schedule\` (platform adobe_stock). Kerjakan setiap item \`due\`, yang paling lama dulu.
+2. **research_session**: cari tren dan permintaan Adobe Stock (musim/event 1-2 bulan ke depan; kebutuhan desainer seperti background, tekstur, overlay, mockup, ilustrasi konsep bisnis/teknologi; topik ramai di berita dan media sosial). Isi temuan terstruktur: topic, keywords, demandScore (1-10), competitionScore (1-10, rendah = sedikit pesaing), seasonality, sources (URL + tanggal akses), confidence. Simpan dengan \`submit_research_session\` dan sebutkan \`model\` kamu (claude/grok). Satu sesi per model per slot; sebaiknya Claude dan Grok sama-sama mengisi tiap slot, karena topik yang ditemukan dua model mendapat keyakinan lebih tinggi.
+3. **publish_daily**: \`get_daily_merge_data\` untuk hari itu. Topik sudah digabung dan diberi \`opportunityScore\` oleh server; keyakinan topik tanpa sumber dibatasi. Pilih 5-10 peluang terbaik, tulis \`rationale\` dan \`priority\` (1-10), lalu \`publish_report\` level daily (period_start = period_end = hari itu). Laporan harian membuka siklus produksi.
+4. **publish_rollup** (weekly/monthly/yearly): \`get_rollup_data\`. Bandingkan topik naik/turun dengan \`performance\` (keyword yang laku dan yang ditolak Adobe). Summary wajib berisi: apa yang terbukti laku, prediksi yang meleset, dan arah periode berikutnya. \`publish_report\` dengan periode persis dari data dan \`child_report_ids\` = semua \`children\`.
+5. Minimal seminggu sekali cek perubahan kebijakan Adobe Stock dan catat di rollup mingguan.
 ${COMMON}`,
 
   shion: `# Playbook Shion — ide gambar Adobe Stock

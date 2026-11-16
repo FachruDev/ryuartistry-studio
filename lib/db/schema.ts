@@ -10,6 +10,7 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -113,17 +114,22 @@ export const agents = pgTable("agents", {
 // Research (Rina)
 // ---------------------------------------------------------------------------
 
-export const researchSessions = pgTable("research_sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  platform: platform("platform").notNull(),
-  day: date("day").notNull(),
-  /** 1..3 (morning, midday, evening) */
-  slot: smallint("slot").notNull(),
-  model: text("model").notNull(),
-  agentId: uuid("agent_id").references(() => agents.id),
-  notes: text("notes"),
-  ...timestamps,
-});
+export const researchSessions = pgTable(
+  "research_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    platform: platform("platform").notNull(),
+    day: date("day").notNull(),
+    /** 1..3 (morning, midday, evening) */
+    slot: smallint("slot").notNull(),
+    model: text("model").notNull(),
+    agentId: uuid("agent_id").references(() => agents.id),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  // One session per model per slot: Claude and Grok can both research the same slot.
+  (t) => [uniqueIndex("research_sessions_slot_uq").on(t.platform, t.day, t.slot, t.model)],
+);
 
 export const researchFindings = pgTable(
   "research_findings",
@@ -163,7 +169,7 @@ export const researchReports = pgTable(
     childReportIds: uuid("child_report_ids").array().notNull().default([]),
     ...timestamps,
   },
-  (t) => [index("research_reports_lookup_idx").on(t.platform, t.level, t.periodStart)],
+  (t) => [uniqueIndex("research_reports_period_uq").on(t.platform, t.level, t.periodStart)],
 );
 
 // ---------------------------------------------------------------------------
@@ -313,16 +319,21 @@ export const publications = pgTable("publications", {
   ...timestamps,
 });
 
-export const performance = pgTable("performance", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  publicationId: uuid("publication_id")
-    .notNull()
-    .references(() => publications.id, { onDelete: "cascade" }),
-  day: date("day").notNull(),
-  metrics: jsonb("metrics").$type<Record<string, number>>().notNull(),
-  revenueUsd: real("revenue_usd").notNull().default(0),
-  ...timestamps,
-});
+export const performance = pgTable(
+  "performance",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    publicationId: uuid("publication_id")
+      .notNull()
+      .references(() => publications.id, { onDelete: "cascade" }),
+    day: date("day").notNull(),
+    metrics: jsonb("metrics").$type<Record<string, number>>().notNull(),
+    revenueUsd: real("revenue_usd").notNull().default(0),
+    ...timestamps,
+  },
+  // Re-importing the same day overwrites instead of double counting.
+  (t) => [uniqueIndex("performance_day_uq").on(t.publicationId, t.day)],
+);
 
 export const transitions = pgTable(
   "transitions",

@@ -1,26 +1,139 @@
 @import "tailwindcss";
 
+/*
+ * Studio design tokens. Light is the base; dark applies with data-theme="dark".
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --bg: #f6f5f1;
+  --glow-a: rgba(124, 108, 255, 0.10);
+  --glow-b: rgba(16, 185, 129, 0.08);
+  --shell: rgba(20, 20, 30, 0.035);
+  --hairline: rgba(20, 20, 30, 0.08);
+  --core: #ffffff;
+  --core-muted: #faf9f6;
+  --highlight: rgba(255, 255, 255, 0.9);
+  --text: #16151a;
+  --muted: #5d5b66;
+  --subtle: #9a98a3;
+  --accent: #5b4dff;
+  --accent-soft: rgba(91, 77, 255, 0.10);
+  --accent-fg: #ffffff;
+  --success: #0f9f6e;
+  --success-soft: rgba(15, 159, 110, 0.10);
+  --warn: #c27803;
+  --warn-soft: rgba(194, 120, 3, 0.10);
+  --danger: #d63c4a;
+  --danger-soft: rgba(214, 60, 74, 0.10);
+  --nav: rgba(255, 255, 255, 0.72);
+  --ambient: 0 1px 2px rgba(20, 20, 30, 0.04), 0 12px 40px -12px rgba(20, 20, 30, 0.10);
 }
+
+/* Set before first paint by the inline script in app/layout.tsx (saved choice, else OS preference). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #08080a;
+  --glow-a: rgba(124, 108, 255, 0.16);
+  --glow-b: rgba(16, 185, 129, 0.10);
+  --shell: rgba(255, 255, 255, 0.03);
+  --hairline: rgba(255, 255, 255, 0.08);
+  --core: #111114;
+  --core-muted: #0d0d10;
+  --highlight: rgba(255, 255, 255, 0.06);
+  --text: #f2f1f5;
+  --muted: #a3a1ad;
+  --subtle: #6c6a75;
+  --accent: #8b80ff;
+  --accent-soft: rgba(139, 128, 255, 0.14);
+  --accent-fg: #0b0a12;
+  --success: #1fa774; /* validated: L-band + contrast on #111114 */
+  --success-soft: rgba(31, 167, 116, 0.16);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.12);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --nav: rgba(17, 17, 20, 0.66);
+  --ambient: 0 1px 2px rgba(0, 0, 0, 0.4), 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+}
+
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-shell: var(--shell);
+  --color-hairline: var(--hairline);
+  --color-core: var(--core);
+  --color-core-muted: var(--core-muted);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-nav: var(--nav);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  transition: background-color 600ms cubic-bezier(0.32, 0.72, 0, 1), color 600ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Ambient glow, fixed so it never repaints while scrolling. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40rem 28rem at 12% -6%, var(--glow-a), transparent 70%),
+    radial-gradient(36rem 26rem at 96% 4%, var(--glow-b), transparent 70%);
+}
+
+/* Theme toggle shows the icon of the theme you would switch to. */
+.theme-icon-sun { display: none; }
+.theme-icon-moon { display: block; }
+:root[data-theme="dark"] .theme-icon-sun { display: block; }
+:root[data-theme="dark"] .theme-icon-moon { display: none; }
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.rise {
+  animation: rise 900ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation: none; }
+  body { transition: none; }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

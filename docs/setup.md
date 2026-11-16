@@ -1,24 +1,28 @@
-# Setup & Operasional (Fase 0–1)
+# Setup & Operasional (Fase 0–2)
 
 ## Komponen
 
 | Path | Isi |
 |---|---|
 | `app/api/mcp/route.ts` | Endpoint MCP (Streamable HTTP, stateless). Token Bearer menentukan peran dan tools yang terlihat |
-| `lib/mcp/server.ts` | Daftar tools per peran |
+| `lib/mcp/server.ts`, `lib/mcp/tools-research.ts`, `lib/mcp/helpers.ts` | Daftar tools per peran (riset Rina dipisah) |
 | `lib/studio/playbooks.ts` | Instruksi shift per agen (tool `get_playbook`) |
 | `lib/studio/workflow.ts` | Aturan alur murni (batas revisi, routing, fallback siklus) + test |
 | `lib/studio/rubrics.ts`, `rubrics/*.json` | Rubrik penilaian dan perhitungan skor di server + test |
 | `lib/studio/adobe.ts` | Aturan metadata Adobe Stock, nama file, ekspor CSV + test |
 | `lib/studio/image-inspect.ts` | Membaca format/ukuran/ruang warna gambar dan dHash (sharp) |
 | `lib/studio/auto-check.ts` | Cek teknis aset |
-| `lib/studio/service/` | Semua operasi job: `core` (helper), `pipeline` (Shion/Lukas), `execution` (Linda/Kechlyn), `publishing` (metadata, approval, kit Adobe, kalibrasi), `research` (Rina, dashboard) |
+| `lib/studio/research-periods.ts` | Kalender studio (WIB): slot riset, periode harian/mingguan (Senin-Minggu)/bulanan/tahunan + test |
+| `lib/studio/research-rollup.ts` | Agregasi topik, skor peluang, tren, performa per keyword + test |
+| `lib/studio/performance-csv.ts` | Parser CSV penjualan (kolom fleksibel) + test |
+| `lib/studio/service/` | Semua operasi job: `core` (helper), `pipeline` (Shion/Lukas), `execution` (Linda/Kechlyn), `publishing` (metadata, approval, kit Adobe, kalibrasi), `research` (sesi & laporan Rina, dashboard), `research-insights` (daily merge, rollup, jadwal, impor performa) |
 | `lib/db/schema.ts`, `drizzle/` | Skema Postgres dan migrasi |
 | `lib/storage.ts` | S3 (bucket privat, URL presigned) |
-| `app/dashboard` | Dashboard manusia: approval, kit upload Adobe, hasil review Adobe, kalibrasi, status pipeline |
+| `app/dashboard` | Dashboard manusia (tema terang/gelap): Ringkasan, Riset (`/research`), Performa (`/performance`) |
 | `app/dashboard/kit/adobe-csv` | Unduhan CSV metadata untuk Adobe Stock |
 | `scripts/seed-agents.ts` | Membuat agen dan token |
 | `scripts/smoke-test.ts` | Uji end-to-end alur gambar Adobe lewat MCP |
+| `scripts/smoke-research.ts` | Uji end-to-end riset Rina, rollup, dan impor performa lewat MCP |
 
 ## Environment
 
@@ -86,12 +90,33 @@ Prompt terjadwal untuk setiap agen cukup: **"Panggil get_playbook lalu jalankan 
 
 Panel **Kalibrasi** membandingkan skor Kechlyn dengan skormu dan melacak syarat mode otomatis (`AUTO_MODE_CRITERIA`: ≥ 50 dinilai, ≥ 90% disetujui, ≥ 80% diterima Adobe).
 
+## Riset Rina (Fase 2)
+
+Semua tanggal memakai zona waktu studio **Asia/Jakarta (WIB)**. Slot riset: 1 pagi (00–11), 2 siang (12–17), 3 malam (18–23). Minggu = Senin–Minggu.
+
+1. **Setiap shift** Rina memanggil `get_research_schedule`. Server mengembalikan daftar `due`: slot yang belum diisi, laporan harian yang belum terbit (termasuk kemarin), dan rollup yang jatuh tempo (periode sebelumnya yang belum dirangkum, atau periode berjalan pada hari terakhirnya).
+2. **Sesi riset** (`submit_research_session`): satu sesi per model per slot, jadi Claude dan Grok bisa mengisi slot yang sama. Sesi ganda ditolak.
+3. **Laporan harian**: `get_daily_merge_data` menggabungkan topik lintas sesi/model secara deterministik dan memberi skor:
+   - `opportunityScore = permintaan × (11 − persaingan) / 10 × keyakinan / 10` (0–10);
+   - keyakinan naik +0,5 per sesi tambahan dan +1 per model tambahan; topik tanpa sumber dibatasi maksimal 5;
+   - tren dibandingkan dengan 7 hari sebelumnya.
+   Rina memilih peluang dan menerbitkan dengan `publish_report` (wajib berisi `opportunities`). Laporan harian membuka 5 siklus produksi.
+4. **Rollup**: `get_rollup_data` menghitung topik dari data mentah periode itu (bukan dari ringkasan), tren naik/turun/baru/hilang dibanding periode sebelumnya, dan performa per keyword. Server memvalidasi periode harus pas kalender, hanya satu laporan per periode, dan `child_report_ids` harus laporan level di bawahnya di dalam periode.
+5. **Performa**: impor CSV penjualan di dashboard (halaman Performa) atau lewat tool admin `import_performance_csv`. Baris dicocokkan ke publikasi lewat nama file yang dibuat server; impor ulang hari yang sama menimpa. Kolom dikenali secara fleksibel (filename / original filename, date / sale date, downloads / quantity, revenue / earnings / royalty); CSV dengan pemisah `;` membaca koma sebagai desimal.
+
+## Dashboard
+
+Tiga halaman: **Ringkasan** (KPI, approval, kit upload, hasil Adobe, kalibrasi, pipeline), **Riset** (jadwal hari ini, laporan harian terbaru, topik minggu ini dengan tren, arsip rollup), **Performa** (grafik 30 hari, aset terlaris, keyword laku/ditolak, impor CSV).
+
+Tema terang dan gelap: mengikuti pengaturan sistem pada kunjungan pertama, bisa diganti dengan tombol di navigasi (disimpan di `localStorage`). Semua warna berasal dari token CSS di `app/globals.css`; warna data grafik sudah divalidasi untuk kedua tema (kontras dan aman untuk buta warna).
+
 ## Batasan saat ini
 
 - Cek teknis reels masih memakai dimensi/durasi yang dilaporkan Linda (Fase 3: ffprobe).
+- Penggabungan topik memakai nama topik yang dinormalisasi (huruf kecil, tanpa tanda baca). Topik dengan kata berbeda tetapi bermakna sama tidak digabung otomatis; Rina sebaiknya memakai nama topik yang konsisten.
+- Format CSV penjualan Adobe yang sebenarnya belum diuji dengan file asli; parser menerima beberapa variasi nama kolom, tetapi cocokkan sekali dengan ekspor dari portal.
 - Tidak ada upload otomatis ke Adobe/Facebook. Adobe Stock menyediakan upload file lewat SFTP untuk contributor; otomatisasi upload file bisa ditambahkan nanti, sedangkan metadata tetap lewat CSV di portal.
 - Daftar kategori Adobe (`ADOBE_CATEGORIES`) diambil dari daftar kategori contributor; cocokkan dengan portal bila Adobe mengubahnya.
 - Cek duplikat memindai semua hash aset di platform (linear); cukup untuk ribuan aset.
-- Rollup riset (mingguan/bulanan/tahunan) bisa disimpan lewat `publish_report`, tetapi belum ada jadwal otomatis.
 - Anggaran biaya baru dicatat (`report_cost`), belum menghentikan job secara otomatis.
 - Dashboard memakai HTTP Basic auth; cukup untuk satu orang, ganti dengan login sungguhan sebelum dipakai tim.

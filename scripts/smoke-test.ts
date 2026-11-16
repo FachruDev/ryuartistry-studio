@@ -153,7 +153,7 @@ async function run() {
   const csv = await (await fetch(new URL("/dashboard/kit/adobe-csv", base), { headers: { Authorization: auth } })).text();
   expect(csv.startsWith("Filename,Title,Keywords,Category,Releases") && csv.includes(pub.fileName), `CSV wrong:\n${csv}`);
   const dash = await (await fetch(new URL("/dashboard", base), { headers: { Authorization: auth } })).text();
-  expect(dash.includes("Kit upload Adobe Stock (1)") && dash.includes(pub.fileName), "dashboard kit missing item");
+  expect(dash.includes("Kit upload") && dash.includes(pub.fileName), "dashboard kit missing item");
   step("approval (skor manusia 7) → kit upload + CSV Adobe berisi file tersebut");
 
   // Duplicate detection: same image in another job.

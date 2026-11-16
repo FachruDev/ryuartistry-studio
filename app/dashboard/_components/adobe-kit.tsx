@@ -1,64 +1,100 @@
 import type { adobeUploadKit, submittedAwaitingResult } from "@/lib/studio/service";
 import { markSubmittedAction, recordPlatformResultAction } from "../actions";
-import { Empty, Section, input, primaryBtn, row, secondaryBtn, tableWrap, thead } from "./ui";
+import { IconCheck, IconDownload, IconUpload, IconX } from "./icons";
+import { Badge, ButtonIcon, Empty, Panel, Section, btn, input, table } from "./ui";
 
 type Kit = Awaited<ReturnType<typeof adobeUploadKit>>;
 type Submitted = Awaited<ReturnType<typeof submittedAwaitingResult>>;
 
-export function AdobeKit({ kit }: { kit: Kit }) {
+const STEPS = [
+  "Unduh file di tabel. Namanya sudah sesuai CSV.",
+  "Upload file ke portal contributor Adobe Stock.",
+  "Unduh CSV, lalu di portal: Uploaded Files → New → Upload CSV.",
+  "Centang Created using generative AI tools, submit, lalu tandai di sini.",
+];
+
+export function AdobeKit({ kit, delay }: { kit: Kit; delay?: number }) {
   return (
-    <Section title={`Kit upload Adobe Stock (${kit.length})`}>
+    <Section
+      eyebrow="Adobe Stock"
+      title="Kit upload"
+      aside={
+        kit.length > 0 && (
+          <a href="/dashboard/kit/adobe-csv" className={btn.ghost} download>
+            Unduh CSV metadata
+            <ButtonIcon>
+              <IconDownload />
+            </ButtonIcon>
+          </a>
+        )
+      }
+      delay={delay}
+    >
       {kit.length === 0 ? (
         <Empty>Belum ada gambar yang disetujui untuk diupload.</Empty>
       ) : (
-        <div className="flex flex-col gap-3">
-          <ol className="list-decimal pl-5 text-sm text-zinc-600 dark:text-zinc-400">
-            <li>Unduh semua file di bawah (nama file sudah sesuai CSV).</li>
-            <li>Upload file ke portal contributor Adobe Stock.</li>
-            <li>
-              Unduh CSV, lalu di portal: Uploaded Files → New → Upload CSV. Centang{" "}
-              <em>Created using generative AI tools</em> sebelum submit.
-            </li>
-            <li>Kembali ke sini, tandai item sebagai sudah diupload.</li>
-          </ol>
-          <a href="/dashboard/kit/adobe-csv" className={`${secondaryBtn} self-start`} download>
-            Unduh CSV metadata
-          </a>
-          <form action={markSubmittedAction} className="flex flex-col gap-3">
-            <div className={tableWrap}>
+        <div className="grid gap-5 lg:grid-cols-12">
+          <Panel className="lg:col-span-4" coreClassName="p-6">
+            <ol className="flex flex-col gap-4">
+              {STEPS.map((s, i) => (
+                <li key={s} className="flex gap-3 text-sm text-muted">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-shell font-mono text-xs text-text ring-1 ring-hairline">
+                    {i + 1}
+                  </span>
+                  {s}
+                </li>
+              ))}
+            </ol>
+          </Panel>
+          <form action={markSubmittedAction} className="flex flex-col gap-4 lg:col-span-8">
+            <Panel coreClassName="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className={thead}>
+                <thead className={table.head}>
                   <tr>
-                    <th className="px-3 py-2 font-medium">Diupload?</th>
-                    <th className="px-3 py-2 font-medium">File</th>
-                    <th className="px-3 py-2 font-medium">Judul</th>
-                    <th className="px-3 py-2 font-medium">Kategori</th>
-                    <th className="px-3 py-2 text-right font-medium">Keyword</th>
+                    <th className={table.th}>
+                      <span className="sr-only">Pilih</span>
+                    </th>
+                    <th className={table.th}>File</th>
+                    <th className={table.th}>Judul</th>
+                    <th className={`${table.th} text-right`}>Keyword</th>
                   </tr>
                 </thead>
                 <tbody>
                   {kit.map(({ pub, downloadUrl, categoryName, width, height }) => (
-                    <tr key={pub.id} className={row}>
-                      <td className="px-3 py-2">
-                        <input type="checkbox" name="publicationId" value={pub.id} aria-label={`Tandai ${pub.fileName}`} />
+                    <tr key={pub.id} className={table.row}>
+                      <td className={table.td}>
+                        <input
+                          type="checkbox"
+                          name="publicationId"
+                          value={pub.id}
+                          aria-label={`Tandai ${pub.fileName} sudah diupload`}
+                          className="h-4 w-4 accent-[var(--accent)]"
+                        />
                       </td>
-                      <td className="px-3 py-2">
-                        <a href={downloadUrl} className="font-mono text-xs underline">
+                      <td className={table.td}>
+                        <a href={downloadUrl} className="font-mono text-xs text-accent underline-offset-4 hover:underline">
                           {pub.fileName}
                         </a>
-                        <span className="block text-xs text-zinc-500">
+                        <span className="mt-0.5 block text-xs text-subtle">
                           {width}×{height}
                         </span>
                       </td>
-                      <td className="px-3 py-2">{pub.title}</td>
-                      <td className="px-3 py-2 text-xs">{categoryName ?? pub.category}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{pub.keywords.length}</td>
+                      <td className={table.td}>
+                        {pub.title}
+                        {categoryName && <span className="mt-0.5 block text-xs text-subtle">{categoryName}</span>}
+                      </td>
+                      <td className={`${table.td} text-right font-mono tabular-nums`}>{pub.keywords.length}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-            <button className={`${primaryBtn} self-start`}>Tandai yang dicentang sudah diupload</button>
+            </Panel>
+            <button className={`${btn.primary} self-start`}>
+              Tandai yang dicentang sudah diupload
+              <ButtonIcon inverted>
+                <IconUpload />
+              </ButtonIcon>
+            </button>
           </form>
         </div>
       )}
@@ -66,31 +102,46 @@ export function AdobeKit({ kit }: { kit: Kit }) {
   );
 }
 
-export function AdobeResults({ submitted }: { submitted: Submitted }) {
+export function AdobeResults({ submitted, delay }: { submitted: Submitted; delay?: number }) {
   return (
-    <Section title={`Menunggu hasil review Adobe (${submitted.length})`}>
+    <Section
+      eyebrow="Moderasi Adobe"
+      title="Menunggu hasil review"
+      aside={<Badge tone={submitted.length ? "warn" : "neutral"}>{submitted.length} item</Badge>}
+      delay={delay}
+    >
       {submitted.length === 0 ? (
-        <Empty>Tidak ada.</Empty>
+        <Empty>Tidak ada yang sedang direview Adobe.</Empty>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
           {submitted.map((p) => (
-            <li key={p.id} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-              <p className="text-sm font-medium">{p.title}</p>
-              <p className="font-mono text-xs text-zinc-500">{p.fileName}</p>
-              <form action={recordPlatformResultAction} className="mt-2 flex flex-wrap items-center gap-2">
+            <Panel key={p.id} coreClassName="p-5">
+              <form action={recordPlatformResultAction} className="flex flex-col gap-4 lg:flex-row lg:items-center">
                 <input type="hidden" name="publicationId" value={p.id} />
-                <input name="externalId" placeholder="ID Adobe (opsional)" className={`${input} w-40`} />
-                <input name="note" placeholder="Alasan jika ditolak" className={`${input} min-w-48 flex-1`} />
-                <button name="result" value="accepted" className={primaryBtn}>
-                  Diterima
-                </button>
-                <button name="result" value="rejected" className={secondaryBtn}>
-                  Ditolak
-                </button>
+                <div className="min-w-0 lg:w-64">
+                  <p className="truncate font-medium">{p.title}</p>
+                  <p className="truncate font-mono text-xs text-subtle">{p.fileName}</p>
+                </div>
+                <input name="externalId" placeholder="ID Adobe (opsional)" className={`${input} lg:w-44`} aria-label="ID Adobe" />
+                <input name="note" placeholder="Alasan jika ditolak" className={`${input} lg:flex-1`} aria-label="Alasan penolakan" />
+                <div className="flex gap-2">
+                  <button name="result" value="accepted" className={btn.primary}>
+                    Diterima
+                    <ButtonIcon inverted>
+                      <IconCheck />
+                    </ButtonIcon>
+                  </button>
+                  <button name="result" value="rejected" className={btn.ghost}>
+                    Ditolak
+                    <ButtonIcon>
+                      <IconX />
+                    </ButtonIcon>
+                  </button>
+                </div>
               </form>
-            </li>
+            </Panel>
           ))}
-        </ul>
+        </div>
       )}
     </Section>
   );

@@ -16,7 +16,8 @@ import {
 } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
 import { CYCLES_PER_DAILY_REPORT } from "../config";
-import { openCycles, type Agent } from "./core";
+import { CHILD_LEVEL, isExactPeriod, overlaps, periodOf, studioToday, type ReportLevel } from "../research-periods";
+import { StudioError, openCycles, type Agent } from "./core";
 
 // ---------------------------------------------------------------------------
 // Rina
@@ -37,6 +38,22 @@ export async function submitResearchSession(
   agent: Agent,
   input: { platform: Platform; day: string; slot: number; model: string; notes?: string; findings: FindingInput[] },
 ) {
+  const [dup] = await db
+    .select({ id: researchSessions.id })
+    .from(researchSessions)
+    .where(
+      and(
+        eq(researchSessions.platform, input.platform),
+        eq(researchSessions.day, input.day),
+        eq(researchSessions.slot, input.slot),
+        eq(researchSessions.model, input.model),
+      ),
+    );
+  if (dup) {
+    throw new StudioError(
+      `Sesi ${input.platform} ${input.day} slot ${input.slot} oleh model "${input.model}" sudah ada (${dup.id}). Cek get_research_schedule untuk slot yang belum dikerjakan.`,
+    );
+  }
   return db.transaction(async (tx) => {
     const [session] = await tx
       .insert(researchSessions)
@@ -99,6 +116,7 @@ export async function publishReport(input: {
   findingIds: string[];
   childReportIds: string[];
 }) {
+  await validateReport(input);
   return db.transaction(async (tx) => {
     const [report] = await tx.insert(researchReports).values(input).returning();
     let cycleIds: string[] = [];
@@ -109,9 +127,85 @@ export async function publishReport(input: {
   });
 }
 
+/** Period alignment, no duplicates, and children that really belong to the period. */
+async function validateReport(input: {
+  level: ReportLevel;
+  platform: Platform;
+  periodStart: string;
+  periodEnd: string;
+  findingIds: string[];
+  childReportIds: string[];
+}) {
+  const period = { start: input.periodStart, end: input.periodEnd };
+  if (!isExactPeriod(input.level, period)) {
+    const p = periodOf(input.level, input.periodStart);
+    throw new StudioError(
+      `Periode ${input.level} tidak sesuai kalender studio. Untuk tanggal ${input.periodStart} gunakan ${p.start} s/d ${p.end} (minggu = Senin-Minggu).`,
+    );
+  }
+
+  const [dup] = await db
+    .select({ id: researchReports.id })
+    .from(researchReports)
+    .where(
+      and(
+        eq(researchReports.platform, input.platform),
+        eq(researchReports.level, input.level),
+        eq(researchReports.periodStart, input.periodStart),
+      ),
+    );
+  if (dup) throw new StudioError(`Laporan ${input.level} untuk periode ini sudah ada (${dup.id}).`);
+
+  if (input.level === "daily") {
+    const [session] = await db
+      .select({ id: researchSessions.id })
+      .from(researchSessions)
+      .where(and(eq(researchSessions.platform, input.platform), eq(researchSessions.day, input.periodStart)))
+      .limit(1);
+    if (!session) throw new StudioError("Belum ada sesi riset pada hari ini; simpan sesi dulu dengan submit_research_session.");
+    if (input.findingIds.length) {
+      const own = await db
+        .select({ id: researchFindings.id })
+        .from(researchFindings)
+        .innerJoin(researchSessions, eq(researchFindings.sessionId, researchSessions.id))
+        .where(
+          and(
+            inArray(researchFindings.id, input.findingIds),
+            eq(researchFindings.platform, input.platform),
+            eq(researchSessions.day, input.periodStart),
+          ),
+        );
+      if (own.length !== new Set(input.findingIds).size) {
+        throw new StudioError("Sebagian finding_ids bukan temuan platform ini pada hari tersebut.");
+      }
+    }
+    return;
+  }
+
+  const childLevel = CHILD_LEVEL[input.level as Exclude<ReportLevel, "daily">];
+  if (!input.childReportIds.length) {
+    throw new StudioError(`Rollup ${input.level} butuh child_report_ids (laporan ${childLevel}). Lihat get_rollup_data.`);
+  }
+  const kids = await db
+    .select()
+    .from(researchReports)
+    .where(inArray(researchReports.id, input.childReportIds));
+  const wrong = kids.filter(
+    (k) =>
+      k.platform !== input.platform ||
+      k.level !== childLevel ||
+      !overlaps({ start: k.periodStart, end: k.periodEnd }, period),
+  );
+  if (kids.length !== new Set(input.childReportIds).size || wrong.length) {
+    throw new StudioError(
+      `child_report_ids harus laporan ${childLevel} ${input.platform} di dalam periode ${period.start} s/d ${period.end}.`,
+    );
+  }
+}
+
 /** Manual cycle start (admin), e.g. to test the pipeline without a research report. */
 export async function openCycleManually(platform: Platform, reportId: string | null) {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = studioToday();
   return db.transaction((tx) => openCycles(tx, platform, day, reportId, 1));
 }
 

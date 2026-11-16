@@ -1,66 +1,77 @@
 import type { calibrationStats } from "@/lib/studio/service";
-import { Section, pct } from "./ui";
+import { Badge, Panel, Section, pct } from "./ui";
 
 type Stats = Awaited<ReturnType<typeof calibrationStats>>;
 
-function Stat({ label, value, target, ok }: { label: string; value: string; target?: string; ok?: boolean }) {
+function Meter({ label, value, display, target, ok }: { label: string; value: number; display: string; target: string; ok: boolean }) {
   return (
-    <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-xl font-semibold tabular-nums">
-        {value}
-        {ok !== undefined && (
-          <span className={`ml-2 text-xs font-normal ${ok ? "text-emerald-600" : "text-zinc-500"}`}>
-            {ok ? "tercapai" : "belum"}
-          </span>
-        )}
-      </p>
-      {target && <p className="text-xs text-zinc-500">target {target}</p>}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm text-muted">{label}</p>
+        <Badge tone={ok ? "success" : "neutral"}>{ok ? "tercapai" : `target ${target}`}</Badge>
+      </div>
+      <p className="text-2xl font-semibold tracking-tight">{display}</p>
+      {/* Track is a lighter step of the fill's own hue, so the state reads across the whole bar. */}
+      <div className={`h-1.5 overflow-hidden rounded-full ${ok ? "bg-success-soft" : "bg-accent-soft"}`} aria-hidden="true">
+        <div
+          className={`h-full origin-left rounded-full transition-transform duration-700 ease-fluid ${ok ? "bg-success" : "bg-accent"}`}
+          style={{ transform: `scaleX(${value > 0 ? Math.max(0.02, Math.min(1, value)) : 0})` }}
+        />
+      </div>
     </div>
   );
 }
 
-export function Calibration({ stats }: { stats: Stats }) {
+export function Calibration({ stats, delay }: { stats: Stats; delay?: number }) {
   const c = stats.criteria;
   const bias = stats.meanBias;
+  const verdict =
+    bias == null
+      ? "Belum ada pasangan skor. Beri skor saat menyetujui atau menolak."
+      : Math.abs(bias) < 0.5
+        ? "Skor Kechlyn sejalan dengan penilaianmu."
+        : bias > 0
+          ? `Kechlyn rata-rata ${bias.toFixed(2)} poin lebih murah hati darimu. Pertimbangkan memperketat rubrik asset-image.`
+          : `Kechlyn rata-rata ${Math.abs(bias).toFixed(2)} poin lebih ketat darimu.`;
+
   return (
-    <Section title="Kalibrasi rubrik Kechlyn (Adobe Stock)">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat
-          label="Sudah kamu nilai"
-          value={String(stats.reviewed)}
-          target={`≥ ${c.minHumanReviewed}`}
-          ok={stats.reviewed >= c.minHumanReviewed}
-        />
-        <Stat
-          label="Kamu setujui"
-          value={pct(stats.approvalRate)}
-          target={`≥ ${pct(c.minHumanApprovalRate)}`}
-          ok={(stats.approvalRate ?? 0) >= c.minHumanApprovalRate}
-        />
-        <Stat
-          label={`Diterima Adobe (${stats.platformDecided} diputuskan)`}
-          value={pct(stats.acceptanceRate)}
-          target={`≥ ${pct(c.minPlatformAcceptanceRate)}`}
-          ok={(stats.acceptanceRate ?? 0) >= c.minPlatformAcceptanceRate}
-        />
-        <Stat
-          label={`Selisih skor Kechlyn vs kamu (${stats.scoredPairs} pasang)`}
-          value={stats.meanAbsDiff == null ? "-" : stats.meanAbsDiff.toFixed(2)}
-        />
-      </div>
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-        {bias == null
-          ? "Belum ada pasangan skor."
-          : Math.abs(bias) < 0.5
-            ? "Skor Kechlyn sejalan dengan penilaianmu."
-            : bias > 0
-              ? `Kechlyn rata-rata ${bias.toFixed(2)} poin lebih murah hati darimu; pertimbangkan memperketat rubrik asset-image.`
-              : `Kechlyn rata-rata ${Math.abs(bias).toFixed(2)} poin lebih ketat darimu.`}{" "}
-        {stats.readyForAutoMode
-          ? "Semua syarat publikasi otomatis tercapai."
-          : "Publikasi tetap butuh approval manusia sampai semua target tercapai."}
-      </p>
+    <Section
+      eyebrow="Kalibrasi"
+      title="Seberapa bisa Kechlyn dipercaya"
+      aside={<Badge tone={stats.readyForAutoMode ? "success" : "neutral"}>{stats.readyForAutoMode ? "Siap mode otomatis" : "Approval manual"}</Badge>}
+      delay={delay}
+    >
+      <Panel coreClassName="p-6 sm:p-8">
+        <div className="grid gap-8 md:grid-cols-3">
+          <Meter
+            label="Sudah kamu nilai"
+            value={stats.reviewed / c.minHumanReviewed}
+            display={`${stats.reviewed} / ${c.minHumanReviewed}`}
+            target={`≥ ${c.minHumanReviewed}`}
+            ok={stats.reviewed >= c.minHumanReviewed}
+          />
+          <Meter
+            label="Kamu setujui"
+            value={stats.approvalRate ?? 0}
+            display={pct(stats.approvalRate)}
+            target={`≥ ${pct(c.minHumanApprovalRate)}`}
+            ok={(stats.approvalRate ?? 0) >= c.minHumanApprovalRate}
+          />
+          <Meter
+            label={`Diterima Adobe (${stats.platformDecided})`}
+            value={stats.acceptanceRate ?? 0}
+            display={pct(stats.acceptanceRate)}
+            target={`≥ ${pct(c.minPlatformAcceptanceRate)}`}
+            ok={(stats.acceptanceRate ?? 0) >= c.minPlatformAcceptanceRate}
+          />
+        </div>
+        <div className="mt-8 flex flex-col gap-2 border-t border-hairline pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted">{verdict}</p>
+          <p className="font-mono text-xs text-subtle">
+            selisih rata-rata {stats.meanAbsDiff == null ? "–" : stats.meanAbsDiff.toFixed(2)} · {stats.scoredPairs} pasang
+          </p>
+        </div>
+      </Panel>
     </Section>
   );
 }
