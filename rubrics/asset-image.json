@@ -1,0 +1,20 @@
+{
+  "id": "asset-image",
+  "version": "1.0.0",
+  "title": "Rubrik aset gambar Adobe Stock (Kechlyn)",
+  "appliesTo": ["image"],
+  "instructions": "Nilai gambar final dari Linda terhadap brief yang disetujui. Semua hard gate harus true agar bisa lolos. Beri skor bulat 1-10 untuk setiap kriteria. Untuk setiap kriteria dengan skor di bawah 8, wajib tulis masalahnya dan saran perbaikan yang konkret. Jika tidak lolos, wajib isi diagnosis: execution (eksekusi kurang), infeasible (ide tidak bisa dieksekusi dengan baik oleh tool), atau weak_idea (eksekusi benar tapi ide lemah). Walau lolos, tetap beri minimal satu saran peningkatan.",
+  "gates": [
+    { "id": "no_broken_text", "label": "Tidak ada teks rusak/gibberish" },
+    { "id": "no_broken_anatomy", "label": "Tidak ada anatomi rusak (tangan, wajah)" },
+    { "id": "no_logo_watermark", "label": "Tidak ada logo atau watermark" },
+    { "id": "no_real_person", "label": "Tidak ada wajah yang menyerupai orang nyata" }
+  ],
+  "criteria": [
+    { "id": "brief_match", "label": "Kesesuaian dengan brief", "weight": 0.25 },
+    { "id": "technical_quality", "label": "Kualitas teknis (ketajaman, noise, artefak, pencahayaan)", "weight": 0.25 },
+    { "id": "commercial_use", "label": "Kegunaan komersial (copy space, fleksibel dipakai)", "weight": 0.25 },
+    { "id": "composition", "label": "Komposisi & estetika", "weight": 0.15 },
+    { "id": "keyword_fit", "label": "Kesesuaian dengan target keyword", "weight": 0.10 }
+  ]
+}

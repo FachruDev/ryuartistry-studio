@@ -6,21 +6,34 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "agents:seed": "bun --env-file=.env scripts/seed-agents.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1169.0",
     "@aws-sdk/s3-request-presigner": "^3.1169.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "dotenv": "^18.0.10",
+    "drizzle-orm": "^0.45.4",
     "next": "16.4.6",
+    "postgres": "^3.4.7",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "sharp": "0.35.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
+    "@types/bun": "^1.4.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
