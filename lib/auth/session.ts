@@ -10,9 +10,28 @@ export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 type Session = { user: string; exp: number };
 
+/**
+ * Reads an env value the way people actually paste it into hosting dashboards: trims spaces
+ * and newlines and strips one pair of wrapping quotes ("value" or 'value').
+ */
+export function envValue(name: string): string | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) return undefined;
+  const unquoted = /^(["']).*\1$/.test(raw) ? raw.slice(1, -1) : raw;
+  return unquoted || undefined;
+}
+
 function secret(): string | null {
-  const s = process.env.STUDIO_SESSION_SECRET;
+  const s = envValue("STUDIO_SESSION_SECRET");
   return s && s.length >= 32 ? s : null;
+}
+
+/** Missing server settings that make login impossible, named so the operator can fix them. */
+export function authConfigProblems(): string[] {
+  const problems: string[] = [];
+  if (!envValue("STUDIO_DASHBOARD_PASSWORD")) problems.push("STUDIO_DASHBOARD_PASSWORD belum diatur");
+  if (!secret()) problems.push("STUDIO_SESSION_SECRET belum diatur atau kurang dari 32 karakter");
+  return problems;
 }
 
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
@@ -43,9 +62,9 @@ export function verifySessionToken(token: string | undefined | null, now = Date.
 
 /** Constant-time credential check against the configured operator account. */
 export function checkCredentials(user: string, password: string): boolean {
-  const expectedPassword = process.env.STUDIO_DASHBOARD_PASSWORD;
+  const expectedPassword = envValue("STUDIO_DASHBOARD_PASSWORD");
   if (!expectedPassword) return false;
-  const expectedUser = process.env.STUDIO_DASHBOARD_USER ?? "admin";
+  const expectedUser = envValue("STUDIO_DASHBOARD_USER") ?? "admin";
   const digest = (s: string) => createHash("sha256").update(s).digest();
   return timingSafeEqual(digest(`${user}\n${password}`), digest(`${expectedUser}\n${expectedPassword}`));
 }

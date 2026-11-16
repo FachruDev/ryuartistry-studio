@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   SESSION_COOKIE,
   SESSION_TTL_SECONDS,
+  authConfigProblems,
   checkCredentials,
   clearFailures,
   createSessionToken,
@@ -26,6 +27,15 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   if (!username) return { error: "Isi nama pengguna.", field: "username" };
   if (!password) return { error: "Isi kata sandi.", field: "password", username };
 
+  // A missing server setting must not look like a wrong password.
+  const problems = authConfigProblems();
+  if (problems.length) {
+    return {
+      error: `Server belum dikonfigurasi: ${problems.join("; ")}. Isi di Environment Variables hosting (Vercel: Settings → Environment Variables), lalu redeploy.`,
+      username,
+    };
+  }
+
   const key = await clientKey();
   const wait = lockedFor(key);
   if (wait) {
@@ -41,7 +51,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   try {
     token = createSessionToken(username);
   } catch {
-    return { error: "Server belum siap: STUDIO_SESSION_SECRET belum diatur. Tambahkan di .env.local lalu jalankan ulang." };
+    return { error: "Server belum siap: STUDIO_SESSION_SECRET belum diatur. Isi di Environment Variables hosting lalu redeploy." };
   }
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,

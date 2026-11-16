@@ -3,22 +3,32 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createWriteStream } from "node:fs";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { envValue } from "@/lib/auth/session";
 
-/** Private bucket for studio assets. Assets are only reachable through presigned URLs. */
-export const ASSET_BUCKET = process.env.S3_BUCKET_PRIVATE ?? "storage-private";
+/**
+ * Asset storage: the Neon object storage bucket (S3-compatible), configured with
+ * AWS_ENDPOINT_URL_S3 (the Neon storage endpoint), AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+ * AWS_REGION, and S3_BUCKET_PRIVATE.
+ */
+export const ASSET_BUCKET = envValue("S3_BUCKET_PRIVATE") ?? "storage-private";
 
 const globalForS3 = globalThis as unknown as { studioS3?: S3Client };
 
 function s3(): S3Client {
   if (!globalForS3.studioS3) {
+    const accessKeyId = envValue("AWS_ACCESS_KEY_ID");
+    const secretAccessKey = envValue("AWS_SECRET_ACCESS_KEY");
     globalForS3.studioS3 = new S3Client({
-      region: process.env.AWS_REGION ?? "auto",
-      endpoint: process.env.AWS_ENDPOINT_URL_S3,
+      region: envValue("AWS_REGION") ?? "auto",
+      endpoint: envValue("AWS_ENDPOINT_URL_S3"),
       forcePathStyle: true,
+      // Pass cleaned values explicitly so keys pasted with quotes/spaces in a hosting dashboard still work.
+      ...(accessKeyId && secretAccessKey ? { credentials: { accessKeyId, secretAccessKey } } : {}),
     });
   }
   return globalForS3.studioS3;
 }
+
 
 export function assetKey(jobId: string, version: number, extension: string): string {
   return `studio/jobs/${jobId}/v${version}.${extension.replace(/^\./, "")}`;

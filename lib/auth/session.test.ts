@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { checkCredentials, clearFailures, createSessionToken, lockedFor, recordFailure, safeNext, verifySessionToken } from "./session";
+import { authConfigProblems, checkCredentials, clearFailures, createSessionToken, lockedFor, recordFailure, safeNext, verifySessionToken } from "./session";
 
 const env = { ...process.env };
 beforeAll(() => {
@@ -38,4 +38,16 @@ test("locks out after 5 failures for the window", () => {
   expect(lockedFor(key, 16 * 60 * 1000)).toBe(0);
   clearFailures(key);
   expect(lockedFor(key, 1000)).toBe(0);
+});
+
+test("env values pasted with quotes or spaces still work, and missing config is reported", () => {
+  process.env.STUDIO_DASHBOARD_PASSWORD = '  "correct horse"\n';
+  expect(checkCredentials("admin", "correct horse")).toBe(true);
+  expect(authConfigProblems()).toEqual([]);
+  delete process.env.STUDIO_DASHBOARD_PASSWORD;
+  process.env.STUDIO_SESSION_SECRET = "short";
+  expect(authConfigProblems()).toEqual([
+    "STUDIO_DASHBOARD_PASSWORD belum diatur",
+    "STUDIO_SESSION_SECRET belum diatur atau kurang dari 32 karakter",
+  ]);
 });
