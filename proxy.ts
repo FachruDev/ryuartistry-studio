@@ -1,24 +1,36 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
+import { getUserById } from "@/lib/auth/users";
 
 /**
- * Optimistic gate: unauthenticated dashboard requests go to /login, signed-in users skip it.
- * Server actions and route handlers verify the session again on their own.
+ * Gate for the dashboard. Checks the cookie signature AND the account in the database (still
+ * active, same session version), before anything renders: a page-level check alone is not
+ * enough, because Suspense boundaries keep streaming data after a redirect in a sibling.
  */
-export function proxy(request: NextRequest) {
+async function signedIn(request: NextRequest): Promise<boolean> {
+  const session = verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!session) return false;
+  const user = await getUserById(session.uid);
+  return Boolean(user && user.active && user.sessionVersion === session.v);
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const signedIn = Boolean(verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value));
+  const ok = await signedIn(request);
 
   if (pathname === "/") {
-    return NextResponse.redirect(new URL(signedIn ? "/dashboard" : "/login", request.url));
+    return NextResponse.redirect(new URL(ok ? "/dashboard" : "/login", request.url));
   }
   if (pathname === "/login") {
-    return signedIn ? NextResponse.redirect(new URL("/dashboard", request.url)) : NextResponse.next();
+    return ok ? NextResponse.redirect(new URL("/dashboard", request.url)) : NextResponse.next();
   }
-  if (!signedIn) {
+  if (!ok) {
     const url = new URL("/login", request.url);
     url.searchParams.set("next", pathname + search);
-    return NextResponse.redirect(url);
+    const res = NextResponse.redirect(url);
+    // Drop a cookie that no longer maps to a valid session.
+    if (request.cookies.has(SESSION_COOKIE)) res.cookies.delete(SESSION_COOKIE);
+    return res;
   }
   return NextResponse.next();
 }

@@ -11,10 +11,10 @@ import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { DeleteObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { inArray } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assets, cycles, ideaGraveyard, ideas, jobs, performance, publications, reviews, transitions } from "@/lib/db/schema";
-import { SESSION_COOKIE, createSessionToken } from "@/lib/auth/session";
+import { operatorCookie } from "./lib/operator-cookie";
 import { ASSET_BUCKET } from "@/lib/storage";
 import { decidePublication, importPerformance, markReelPosted, performanceOverview, recordReelRestriction } from "@/lib/studio/service";
 
@@ -80,14 +80,19 @@ async function run(dir: string) {
   // Login gate
   const anon = await fetch(new URL("/dashboard/reels", base), { redirect: "manual" });
   expect(anon.status === 307 && anon.headers.get("location")?.includes("/login?next=%2Fdashboard%2Freels"), `gate: ${anon.status} ${anon.headers.get("location")}`);
-  const cookie = `${SESSION_COOKIE}=${createSessionToken("smoke")}`;
+  const cookie = await operatorCookie();
   const signedIn = await fetch(new URL("/login", base), { redirect: "manual", headers: { Cookie: cookie } });
   expect(signedIn.status === 307 && signedIn.headers.get("location")?.endsWith("/dashboard"), "signed-in /login should bounce to /dashboard");
-  const forged = await fetch(new URL("/dashboard", base), { redirect: "manual", headers: { Cookie: `${SESSION_COOKIE}=${createSessionToken("x").slice(0, -2)}AA` } });
+  const forged = await fetch(new URL("/dashboard", base), { redirect: "manual", headers: { Cookie: `${cookie.slice(0, -2)}AA` } });
   expect(forged.status === 307, "forged cookie must be refused");
+  // A session whose version is outdated (password changed elsewhere) must not open the dashboard.
+  await db.execute(sql`update users set session_version = session_version + 1 where role = 'superadmin'`);
+  const revoked = await fetch(new URL("/dashboard", base), { redirect: "manual", headers: { Cookie: cookie } });
+  await db.execute(sql`update users set session_version = session_version - 1 where role = 'superadmin'`);
+  expect(revoked.status === 307 && revoked.headers.get("location")?.includes("/login"), `revoked session must be redirected before rendering, got ${revoked.status}`);
   const loginPage = await (await fetch(new URL("/login", base))).text();
   expect(loginPage.includes("Masuk ke Studio") && /autocomplete="current-password"/i.test(loginPage), "login page");
-  step("login: dashboard dialihkan ke /login (dengan next), cookie palsu ditolak, halaman login tampil");
+  step("login: dashboard dialihkan ke /login (dengan next), cookie palsu dan sesi kedaluwarsa ditolak, halaman login tampil");
 
   const [admin, shion, lukas, linda, kechlyn] = await Promise.all(["admin", "shion", "lukas", "linda", "kechlyn"].map(connect));
   const open = async () => {

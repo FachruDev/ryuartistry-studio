@@ -77,6 +77,15 @@ export function IconChevron(p: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function IconKey(p: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} width={16} height={16} {...p}>
+      <circle cx="8" cy="15.5" r="4" />
+      <path d="m10.8 12.7 8.7-8.7M16.5 7l2.5 2.5M14 9.5l2 2" />
+    </svg>
+  );
+}
+
 export function IconLogout(p: SVGProps<SVGSVGElement>) {
   return (
     <svg {...base} width={16} height={16} {...p}>

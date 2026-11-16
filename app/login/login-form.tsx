@@ -43,7 +43,7 @@ export function LoginForm() {
           autoCapitalize="none"
           spellCheck={false}
           required
-          placeholder="admin…"
+          placeholder="nama pengguna…"
           aria-invalid={state?.field === "username" || undefined}
           aria-describedby={state?.field === "username" ? "login-error" : undefined}
           className={field}

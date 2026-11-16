@@ -1,25 +1,12 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  SESSION_COOKIE,
-  SESSION_TTL_SECONDS,
-  authConfigProblems,
-  checkCredentials,
-  clearFailures,
-  createSessionToken,
-  lockedFor,
-  recordFailure,
-  safeNext,
-} from "@/lib/auth/session";
+import { setSessionCookie } from "@/lib/auth/cookie";
+import { SESSION_COOKIE, authConfigProblems, safeNext } from "@/lib/auth/session";
+import { authenticateUser } from "@/lib/auth/users";
 
 export type LoginState = { error: string; field?: "username" | "password"; username?: string } | null;
-
-async function clientKey(): Promise<string> {
-  const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0].trim() || h.get("x-real-ip") || "local";
-}
 
 export async function loginAction(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const username = String(formData.get("username") ?? "").trim();
@@ -36,31 +23,15 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     };
   }
 
-  const key = await clientKey();
-  const wait = lockedFor(key);
-  if (wait) {
-    return { error: `Terlalu banyak percobaan. Coba lagi dalam ${Math.ceil(wait / 60)} menit.`, username };
+  const result = await authenticateUser(username, password);
+  if (!result.ok) {
+    return result.reason === "locked"
+      ? { error: `Akun dikunci sementara karena terlalu banyak percobaan. Coba lagi dalam ${result.minutes} menit.`, username }
+      : { error: "Nama pengguna atau kata sandi salah. Periksa lalu coba lagi.", field: "password", username };
   }
-  if (!checkCredentials(username, password)) {
-    recordFailure(key);
-    return { error: "Nama pengguna atau kata sandi salah. Periksa lalu coba lagi.", field: "password", username };
-  }
-  clearFailures(key);
 
-  let token: string;
-  try {
-    token = createSessionToken(username);
-  } catch {
-    return { error: "Server belum siap: STUDIO_SESSION_SECRET belum diatur. Isi di Environment Variables hosting lalu redeploy." };
-  }
-  (await cookies()).set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_TTL_SECONDS,
-  });
-  redirect(safeNext(formData.get("next")));
+  await setSessionCookie(result.user);
+  redirect(result.user.mustChangePassword ? "/dashboard/account" : safeNext(formData.get("next")));
 }
 
 export async function logoutAction(): Promise<void> {

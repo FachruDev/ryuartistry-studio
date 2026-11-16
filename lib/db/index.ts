@@ -1,9 +1,10 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as coreSchema from "./schema";
+import * as authSchema from "./schema-auth";
 import * as automationSchema from "./schema-automation";
 
-const schema = { ...coreSchema, ...automationSchema };
+const schema = { ...coreSchema, ...automationSchema, ...authSchema };
 
 function createClient() {
   const url = process.env.DATABASE_URL;

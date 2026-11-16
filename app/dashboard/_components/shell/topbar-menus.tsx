@@ -7,7 +7,7 @@ import { logoutAction } from "@/app/login/actions";
 import { IconMoon, IconSun } from "../icons";
 import { markNotificationsReadAction } from "../../actions";
 import { Dropdown, menuItem } from "./dropdown";
-import { IconBell, IconLogout, NAV_ICONS } from "./nav-icons";
+import { IconBell, IconKey, IconLogout, NAV_ICONS } from "./nav-icons";
 
 export type TopbarNotification = {
   id: string;
@@ -120,6 +120,9 @@ export function AccountMenu({ user }: { user: string }) {
           </Link>
           <Link href="/dashboard/automation" role="menuitem" data-menu-item onClick={close} className={menuItem}>
             <SettingsIcon className="text-muted" /> Pengaturan otomasi
+          </Link>
+          <Link href="/dashboard/account" role="menuitem" data-menu-item onClick={close} className={menuItem}>
+            <IconKey className="text-muted" /> Akun & kata sandi
           </Link>
           <button type="button" role="menuitem" data-menu-item onClick={() => toggleTheme()} className={menuItem}>
             <IconSun className="theme-icon-sun text-muted" />

@@ -36,7 +36,7 @@
 | File | Isi | Di git? |
 |---|---|---|
 | `.env` | `DATABASE_URL`, kredensial S3 (`AWS_*`), opsional `S3_BUCKET_PRIVATE` (default `storage-private`) | Tidak |
-| `.env.local` | `CRON_SECRET` (untuk `/api/cron/tick`), `STUDIO_DASHBOARD_USER`, `STUDIO_DASHBOARD_PASSWORD` (akun login), `STUDIO_SESSION_SECRET` (kunci tanda tangan cookie, minimal 32 karakter), `STUDIO_REELS_NICHE` (niche kanal Facebook), opsional `FFMPEG_PATH` / `FFPROBE_PATH` | Tidak |
+| `.env.local` | `CRON_SECRET` (untuk `/api/cron/tick`), `STUDIO_SESSION_SECRET` (kunci tanda tangan cookie, minimal 32 karakter), `STUDIO_REELS_NICHE` (niche kanal Facebook), opsional `FFMPEG_PATH` / `FFPROBE_PATH` | Tidak |
 | `.env.agents.local` | Token setiap agen (`STUDIO_TOKEN_SHION`, dst.) | Tidak |
 
 **Server butuh `ffmpeg` dan `ffprobe`** (untuk membaca reels: codec, durasi, loudness, keyframe). Di Windows: `winget install Gyan.FFmpeg`; di Linux: paket `ffmpeg`.
@@ -165,7 +165,7 @@ Halaman:
 - **Agen**: status, heartbeat, kit koneksi per agen, cron.
 - **Pengaturan**: pemakaian anggaran hari ini, aturan otomasi, riwayat notifikasi.
 
-**Login** di `/login` (desain terpisah, dua tema). Sesi berupa cookie bertanda tangan HMAC (`httpOnly`, `sameSite=lax`, `secure` di produksi) berlaku 7 hari; 5 kali salah dalam 15 menit mengunci percobaan dari alamat yang sama. Semua server action dan rute CSV memeriksa sesi lagi; tujuan setelah login (`?next=`) hanya boleh ke `/dashboard…`.
+**Login** di `/login` (desain terpisah, dua tema). **Akun disimpan di database** (tabel `users`, kata sandi di-hash dengan scrypt), bukan di env. Buat akun dengan `bun run user:create -- --username <nama> --password <sandi> --must-change` (tambahkan `--reset` untuk mereset kata sandi akun yang sudah ada). Sesi berupa cookie bertanda tangan HMAC (`httpOnly`, `sameSite=lax`, `secure` di produksi) berisi ID akun dan versi sesi, berlaku 7 hari; server memeriksa akunnya masih aktif dan versinya sama. **Ganti kata sandi** di menu akun → Akun & kata sandi; semua sesi lain langsung keluar. Akun dengan kata sandi awal diarahkan ke halaman itu dan melihat banner pengingat. Lima kali salah mengunci akun 15 menit (disimpan di database, jadi berlaku di semua instance Vercel). Tujuan setelah login (`?next=`) hanya boleh ke `/dashboard…`.
 
 Tema terang dan gelap: mengikuti pengaturan sistem pada kunjungan pertama, bisa diganti dengan tombol di topbar (disimpan di `localStorage`, `theme-color` ikut berubah). Semua warna berasal dari token CSS di `app/globals.css`; warna data grafik sudah divalidasi untuk kedua tema (kontras dan aman untuk buta warna).
 
@@ -175,7 +175,6 @@ Tema terang dan gelap: mengikuti pengaturan sistem pada kunjungan pertama, bisa 
 - Posting ke Facebook dan upload ke Adobe tetap manual (lewat kit). Publikasi otomatis di studio berarti melewati approval manusia, bukan mengunggah ke platform: Graph API Meta butuh aplikasi yang disetujui Meta, dan Adobe hanya menyediakan SFTP + CSV.
 - Biaya hanya sejauh yang dilaporkan agen lewat `report_cost`; agen yang tidak melapor tidak terhitung dalam anggaran.
 - Dengan beberapa instance server, cron cukup dipanggil ke satu instance; dedupe notifikasi mencegah duplikat.
-- Batas login disimpan di memori server; dengan beberapa instance server, gunakan penyimpanan bersama.
 - Penggabungan topik memakai nama topik yang dinormalisasi (huruf kecil, tanpa tanda baca). Topik dengan kata berbeda tetapi bermakna sama tidak digabung otomatis; Rina sebaiknya memakai nama topik yang konsisten.
 - Format CSV penjualan Adobe yang sebenarnya belum diuji dengan file asli; parser menerima beberapa variasi nama kolom, tetapi cocokkan sekali dengan ekspor dari portal.
 - Tidak ada upload otomatis ke Adobe/Facebook. Adobe Stock menyediakan upload file lewat SFTP untuk contributor; otomatisasi upload file bisa ditambahkan nanti, sedangkan metadata tetap lewat CSV di portal.

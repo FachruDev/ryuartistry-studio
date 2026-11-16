@@ -36,6 +36,13 @@
       "when": 1794805233237,
       "tag": "0004_automation_phase4",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794811938158,
+      "tag": "0005_auth_users",
+      "breakpoints": true
     }
   ]
 }

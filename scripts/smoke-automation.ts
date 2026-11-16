@@ -11,7 +11,7 @@ import { and, eq, gte, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assets, cycles, ideas, jobs, publications, reviews, transitions, usageCosts } from "@/lib/db/schema";
 import { agentActivity, notifications } from "@/lib/db/schema-automation";
-import { SESSION_COOKIE, createSessionToken } from "@/lib/auth/session";
+import { operatorCookie } from "./lib/operator-cookie";
 import {
   agentsOverview,
   getAutomationSettings,
@@ -116,7 +116,7 @@ async function run(original: Awaited<ReturnType<typeof getAutomationSettings>>) 
   step("publikasi otomatis: kalibrasi tercapai + sakelar aktif → disetujui tanpa manusia, ditandai autoApproved");
 
   // Dashboard pages + notifications read
-  const cookie = { headers: { Cookie: `${SESSION_COOKIE}=${createSessionToken("smoke")}` } };
+  const cookie = { headers: { Cookie: await operatorCookie() } };
   const agentsPage = await (await fetch(new URL("/dashboard/agents", base), cookie)).text();
   const autoPage = await (await fetch(new URL("/dashboard/automation", base), cookie)).text();
   expect(agentsPage.includes("Kit koneksi") && agentsPage.includes("/api/cron/tick"), "agents page");

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { getSession } from "@/lib/auth/server";
@@ -15,6 +17,8 @@ async function Chrome() {
     listNotifications(8),
     unreadNotificationCount(),
   ]);
+  // The proxy only checks the cookie signature; a revoked or outdated session ends here.
+  if (!session) redirect("/login");
   const counts = { ...base, quietAgents: agents.filter((a) => a.role !== "admin" && a.health !== "active").length };
   // Plain JSON for the client menus (dates as ISO strings).
   const notifications = notes.map((n) => ({
@@ -28,8 +32,18 @@ async function Chrome() {
   }));
   return (
     <>
-      <Sidebar counts={counts} user={session?.user} />
-      <Topbar counts={counts} user={session?.user} notifications={notifications} unread={unread} />
+      <Sidebar counts={counts} user={session.user} />
+      <Topbar counts={counts} user={session.user} notifications={notifications} unread={unread} />
+      {session.mustChangePassword && (
+        <div className="mx-3 mt-3 lg:ml-0">
+          <p role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-warn-soft px-4 py-3 text-sm text-warn">
+            Kamu masih memakai kata sandi awal.
+            <Link href="/dashboard/account" className="font-medium underline underline-offset-4">
+              Ganti kata sandi
+            </Link>
+          </p>
+        </div>
+      )}
     </>
   );
 }

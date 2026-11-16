@@ -1,14 +1,14 @@
 /**
- * Dashboard sessions: an HMAC-signed cookie (no session table needed for a single operator).
- * Credentials: STUDIO_DASHBOARD_USER (default "admin") + STUDIO_DASHBOARD_PASSWORD.
- * Signing key: STUDIO_SESSION_SECRET (at least 32 characters). Changing it logs everyone out.
+ * Dashboard sessions: an HMAC-signed cookie carrying the user id and that user's session
+ * version. Accounts and passwords live in the database (lib/auth/users.ts), not in env vars.
+ * The only env value here is the signing key STUDIO_SESSION_SECRET (at least 32 characters).
  */
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "studio_session";
 export const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-type Session = { user: string; exp: number };
+export type Session = { uid: string; user: string; v: number; exp: number };
 
 /**
  * Reads an env value the way people actually paste it into hosting dashboards: trims spaces
@@ -28,22 +28,21 @@ function secret(): string | null {
 
 /** Missing server settings that make login impossible, named so the operator can fix them. */
 export function authConfigProblems(): string[] {
-  const problems: string[] = [];
-  if (!envValue("STUDIO_DASHBOARD_PASSWORD")) problems.push("STUDIO_DASHBOARD_PASSWORD belum diatur");
-  if (!secret()) problems.push("STUDIO_SESSION_SECRET belum diatur atau kurang dari 32 karakter");
-  return problems;
+  return secret() ? [] : ["STUDIO_SESSION_SECRET belum diatur atau kurang dari 32 karakter"];
 }
 
 const b64 = (s: string) => Buffer.from(s).toString("base64url");
 const sign = (payload: string, key: string) => createHmac("sha256", key).update(payload).digest("base64url");
 
-export function createSessionToken(user: string, now = Date.now()): string {
+export function createSessionToken(user: { id: string; username: string; sessionVersion: number }, now = Date.now()): string {
   const key = secret();
   if (!key) throw new Error("STUDIO_SESSION_SECRET belum diatur (minimal 32 karakter)");
-  const payload = b64(JSON.stringify({ user, exp: Math.floor(now / 1000) + SESSION_TTL_SECONDS } satisfies Session));
+  const session: Session = { uid: user.id, user: user.username, v: user.sessionVersion, exp: Math.floor(now / 1000) + SESSION_TTL_SECONDS };
+  const payload = b64(JSON.stringify(session));
   return `${payload}.${sign(payload, key)}`;
 }
 
+/** Signature + expiry only (cheap, used by the proxy). Server code also checks the database. */
 export function verifySessionToken(token: string | undefined | null, now = Date.now()): Session | null {
   const key = secret();
   if (!key || !token) return null;
@@ -54,48 +53,13 @@ export function verifySessionToken(token: string | undefined | null, now = Date.
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
     const s = JSON.parse(Buffer.from(payload, "base64url").toString()) as Session;
-    return typeof s.user === "string" && s.exp * 1000 > now ? s : null;
+    return typeof s.uid === "string" && typeof s.v === "number" && s.exp * 1000 > now ? s : null;
   } catch {
     return null;
   }
 }
 
-/** Constant-time credential check against the configured operator account. */
-export function checkCredentials(user: string, password: string): boolean {
-  const expectedPassword = envValue("STUDIO_DASHBOARD_PASSWORD");
-  if (!expectedPassword) return false;
-  const expectedUser = envValue("STUDIO_DASHBOARD_USER") ?? "admin";
-  const digest = (s: string) => createHash("sha256").update(s).digest();
-  return timingSafeEqual(digest(`${user}\n${password}`), digest(`${expectedUser}\n${expectedPassword}`));
-}
-
 /** Only same-site dashboard paths are valid post-login destinations (no open redirects). */
 export function safeNext(next: unknown): string {
   return typeof next === "string" && /^\/dashboard(\/[\w\-/]*)?(\?[\w=&\-]*)?$/.test(next) ? next : "/dashboard";
-}
-
-// ---------------------------------------------------------------------------
-// Login throttling (in memory, per server instance)
-// ---------------------------------------------------------------------------
-
-const WINDOW_MS = 15 * 60 * 1000;
-const MAX_ATTEMPTS = 5;
-const globalForAuth = globalThis as unknown as { studioLoginAttempts?: Map<string, { count: number; resetAt: number }> };
-const attempts = (globalForAuth.studioLoginAttempts ??= new Map());
-
-/** Returns seconds to wait when the key is locked out, else 0. */
-export function lockedFor(key: string, now = Date.now()): number {
-  const a = attempts.get(key);
-  if (!a || a.resetAt <= now) return 0;
-  return a.count >= MAX_ATTEMPTS ? Math.ceil((a.resetAt - now) / 1000) : 0;
-}
-
-export function recordFailure(key: string, now = Date.now()): void {
-  const a = attempts.get(key);
-  if (!a || a.resetAt <= now) attempts.set(key, { count: 1, resetAt: now + WINDOW_MS });
-  else a.count++;
-}
-
-export function clearFailures(key: string): void {
-  attempts.delete(key);
 }

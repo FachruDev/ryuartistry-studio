@@ -38,7 +38,12 @@ export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
 
 export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
+/** Pages reachable from the account menu rather than the sidebar. */
+const EXTRA_PAGES: NavItem[] = [{ href: "/dashboard/account", label: "Akun", hint: "Kata sandi dan keamanan" }];
+
 export function activeItem(pathname: string): NavItem {
+  const extra = EXTRA_PAGES.find((p) => pathname.startsWith(p.href));
+  if (extra) return extra;
   return (
     [...NAV_ITEMS].sort((a, b) => b.href.length - a.href.length).find((i) => pathname === i.href || pathname.startsWith(`${i.href}/`)) ??
     NAV_ITEMS[0]
