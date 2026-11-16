@@ -77,27 +77,34 @@ export type ClientRegistration = {
   tokenEndpointAuthMethod: "none" | "client_secret_post" | "client_secret_basic";
 };
 
-/** RFC 7591 request validation. Returns the normalized registration or an error description. */
+const SUPPORTED_AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"] as const;
+
+/**
+ * RFC 7591 request validation, lenient the way the RFC allows: the server may narrow what a
+ * client asks for. Real clients (e.g. a hosted metadata document) often list extra grant types
+ * or auth methods; we keep what we support instead of rejecting the whole client.
+ * - grant_types: must include authorization_code (when given); others are ignored.
+ * - token_endpoint_auth_method: unsupported methods fall back to a public client ("none", PKCE).
+ * - redirect_uris: unsafe entries are dropped; at least one safe one must remain.
+ */
 export function validateRegistration(body: unknown): { ok: true; value: ClientRegistration } | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "Body must be a JSON object" };
   const b = body as Record<string, unknown>;
   const uris = b.redirect_uris;
-  if (!Array.isArray(uris) || uris.length === 0 || uris.length > 10) {
-    return { ok: false, error: "redirect_uris must be a non-empty array (max 10)" };
+  if (!Array.isArray(uris) || uris.length === 0 || uris.length > 20) {
+    return { ok: false, error: "redirect_uris must be a non-empty array (max 20)" };
   }
-  if (!uris.every((u) => typeof u === "string" && u.length <= 500 && isValidRedirectUri(u))) {
-    return { ok: false, error: "redirect_uris must be https URLs (or http on localhost)" };
+  const safeUris = uris.filter((u): u is string => typeof u === "string" && u.length <= 500 && isValidRedirectUri(u));
+  if (safeUris.length === 0) return { ok: false, error: "redirect_uris must contain an https URL (or http on localhost)" };
+
+  const grants = b.grant_types;
+  if (grants !== undefined && (!Array.isArray(grants) || !grants.includes("authorization_code"))) {
+    return { ok: false, error: "grant_types must include authorization_code" };
   }
-  const method = (b.token_endpoint_auth_method ?? "none") as string;
-  if (!["none", "client_secret_post", "client_secret_basic"].includes(method)) {
-    return { ok: false, error: "Unsupported token_endpoint_auth_method" };
-  }
-  const grants = (b.grant_types ?? ["authorization_code"]) as unknown;
-  if (!Array.isArray(grants) || !grants.every((g) => g === "authorization_code" || g === "refresh_token")) {
-    return { ok: false, error: "Only authorization_code and refresh_token grants are supported" };
-  }
+  const requested = typeof b.token_endpoint_auth_method === "string" ? b.token_endpoint_auth_method : "none";
+  const method = (SUPPORTED_AUTH_METHODS as readonly string[]).includes(requested) ? (requested as ClientRegistration["tokenEndpointAuthMethod"]) : "none";
   const name = typeof b.client_name === "string" && b.client_name.trim() ? b.client_name.trim().slice(0, 100) : "Klien MCP";
-  return { ok: true, value: { name, redirectUris: uris as string[], tokenEndpointAuthMethod: method as ClientRegistration["tokenEndpointAuthMethod"] } };
+  return { ok: true, value: { name, redirectUris: safeUris, tokenEndpointAuthMethod: method } };
 }
 
 /** A client_id that is an https URL with a path is a Client ID Metadata Document. */
