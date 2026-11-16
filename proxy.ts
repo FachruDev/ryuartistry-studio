@@ -1,20 +1,28 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { isDashboardAuthorized } from "@/lib/dashboard-auth";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
-/** Optimistic Basic-auth gate for the dashboard. Server actions check again on their own. */
+/**
+ * Optimistic gate: unauthenticated dashboard requests go to /login, signed-in users skip it.
+ * Server actions and route handlers verify the session again on their own.
+ */
 export function proxy(request: NextRequest) {
-  if (!isDashboardAuthorized(request.headers.get("authorization"))) {
-    return new NextResponse("Butuh login dashboard", {
-      status: 401,
-      headers: { "WWW-Authenticate": 'Basic realm="Ryuartistry Studio", charset="UTF-8"' },
-    });
+  const { pathname, search } = request.nextUrl;
+  const signedIn = Boolean(verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value));
+
+  if (pathname === "/") {
+    return NextResponse.redirect(new URL(signedIn ? "/dashboard" : "/login", request.url));
   }
-  if (request.nextUrl.pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (pathname === "/login") {
+    return signedIn ? NextResponse.redirect(new URL("/dashboard", request.url)) : NextResponse.next();
+  }
+  if (!signedIn) {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("next", pathname + search);
+    return NextResponse.redirect(url);
   }
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*"],
+  matcher: ["/", "/login", "/dashboard/:path*"],
 };

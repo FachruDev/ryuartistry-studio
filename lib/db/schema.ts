@@ -273,6 +273,8 @@ export const assets = pgTable("assets", {
   durationSec: real("duration_sec"),
   phash: text("phash"),
   autoCheck: jsonb("auto_check").$type<{ passed: boolean; problems: string[] }>(),
+  /** Facts read from the file (video: codecs, loudness, fps...) and derived files (keyframe sheet). */
+  media: jsonb("media").$type<{ video?: Record<string, unknown>; framesKey?: string | null }>(),
   notes: text("notes"),
   ...timestamps,
 });

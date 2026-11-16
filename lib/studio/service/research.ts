@@ -238,6 +238,27 @@ export async function getIdeaGraveyard(platform: Platform, limit: number) {
 // Dashboard queries
 // ---------------------------------------------------------------------------
 
+/** Small counters for the admin sidebar: what is waiting on the human, per area. */
+export async function navCounts() {
+  const rows = await db
+    .select({ platform: publications.platform, status: publications.status, n: sql<number>`count(*)::int` })
+    .from(publications)
+    .where(inArray(publications.status, ["awaiting_approval", "approved", "submitted"]))
+    .groupBy(publications.platform, publications.status);
+  const n = (platform: string | null, status: string) =>
+    rows.filter((r) => (!platform || r.platform === platform) && r.status === status).reduce((a, r) => a + r.n, 0);
+  const [{ halted }] = await db
+    .select({ halted: sql<number>`count(*)::int` })
+    .from(cycles)
+    .where(eq(cycles.status, "halted"));
+  return {
+    approvals: n(null, "awaiting_approval"),
+    adobe: n("adobe_stock", "approved") + n("adobe_stock", "submitted"),
+    reels: n("facebook_reels", "approved"),
+    halted,
+  };
+}
+
 export async function dashboardSnapshot() {
   const statusCounts = await db
     .select({ status: jobs.status, platform: jobs.platform, n: sql<number>`count(*)::int` })

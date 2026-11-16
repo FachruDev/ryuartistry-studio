@@ -1,5 +1,5 @@
 import type { calibrationStats } from "@/lib/studio/service";
-import { Badge, Panel, Section, pct } from "./ui";
+import { Badge, Panel, Section, dec2, pct } from "./ui";
 
 type Stats = Awaited<ReturnType<typeof calibrationStats>>;
 
@@ -22,7 +22,7 @@ function Meter({ label, value, display, target, ok }: { label: string; value: nu
   );
 }
 
-export function Calibration({ stats, delay }: { stats: Stats; delay?: number }) {
+export function Calibration({ stats, delay, platform = "Adobe" }: { stats: Stats; delay?: number; platform?: string }) {
   const c = stats.criteria;
   const bias = stats.meanBias;
   const verdict =
@@ -31,8 +31,8 @@ export function Calibration({ stats, delay }: { stats: Stats; delay?: number }) 
       : Math.abs(bias) < 0.5
         ? "Skor Kechlyn sejalan dengan penilaianmu."
         : bias > 0
-          ? `Kechlyn rata-rata ${bias.toFixed(2)} poin lebih murah hati darimu. Pertimbangkan memperketat rubrik asset-image.`
-          : `Kechlyn rata-rata ${Math.abs(bias).toFixed(2)} poin lebih ketat darimu.`;
+          ? `Kechlyn rata-rata ${dec2(bias)} poin lebih murah hati darimu. Pertimbangkan memperketat rubriknya.`
+          : `Kechlyn rata-rata ${dec2(Math.abs(bias))} poin lebih ketat darimu.`;
 
   return (
     <Section
@@ -58,7 +58,7 @@ export function Calibration({ stats, delay }: { stats: Stats; delay?: number }) 
             ok={(stats.approvalRate ?? 0) >= c.minHumanApprovalRate}
           />
           <Meter
-            label={`Diterima Adobe (${stats.platformDecided})`}
+            label={`Diterima ${platform} (${stats.platformDecided})`}
             value={stats.acceptanceRate ?? 0}
             display={pct(stats.acceptanceRate)}
             target={`≥ ${pct(c.minPlatformAcceptanceRate)}`}
@@ -68,7 +68,7 @@ export function Calibration({ stats, delay }: { stats: Stats; delay?: number }) 
         <div className="mt-8 flex flex-col gap-2 border-t border-hairline pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted">{verdict}</p>
           <p className="font-mono text-xs text-subtle">
-            selisih rata-rata {stats.meanAbsDiff == null ? "–" : stats.meanAbsDiff.toFixed(2)} · {stats.scoredPairs} pasang
+            selisih rata-rata {stats.meanAbsDiff == null ? "–" : dec2(stats.meanAbsDiff)} · {stats.scoredPairs} pasang
           </p>
         </div>
       </Panel>

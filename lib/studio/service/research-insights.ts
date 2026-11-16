@@ -84,6 +84,7 @@ async function performanceIn(platform: Platform, p: Period) {
         .select({
           publicationId: performance.publicationId,
           downloads: sql<number>`coalesce(sum((${performance.metrics}->>'downloads')::numeric), 0)::float`,
+      views: sql<number>`coalesce(sum((${performance.metrics}->>'views')::numeric), 0)::float`,
           revenue: sql<number>`coalesce(sum(${performance.revenueUsd}), 0)::float`,
         })
         .from(performance)
@@ -250,35 +251,42 @@ export async function getResearchSchedule(platform: Platform, now = new Date()) 
 // Performance import
 // ---------------------------------------------------------------------------
 
-export async function importPerformance(platform: Platform, rows: PerformanceRow[]) {
-  const names = [...new Set(rows.map((r) => r.fileName))];
-  const pubs = names.length
-    ? await db
-        .select({ id: publications.id, fileName: publications.fileName })
-        .from(publications)
-        .where(and(eq(publications.platform, platform), inArray(publications.fileName, names)))
-    : [];
-  const byName = new Map(pubs.map((p) => [p.fileName!, p.id]));
+/** Post links differ in query strings and trailing slashes; compare host + path only. */
+export function normalizePostUrl(url: string): string {
+  try {
+    const u = new URL(url.trim());
+    return (u.hostname.replace(/^(www|m|web)\./, "") + u.pathname.replace(/\/+$/, "")).toLowerCase();
+  } catch {
+    return url.trim().toLowerCase();
+  }
+}
 
-  const matched = rows.filter((r) => byName.has(r.fileName));
-  for (const r of matched) {
+export async function importPerformance(platform: Platform, rows: PerformanceRow[]) {
+  const pubs = await db
+    .select({ id: publications.id, fileName: publications.fileName, externalId: publications.externalId })
+    .from(publications)
+    .where(eq(publications.platform, platform));
+  const byName = new Map(pubs.filter((p) => p.fileName).map((p) => [p.fileName!, p.id]));
+  const byPost = new Map(pubs.filter((p) => p.externalId).map((p) => [normalizePostUrl(p.externalId!), p.id]));
+  const match = (r: PerformanceRow) =>
+    (r.fileName && byName.get(r.fileName)) || (r.postUrl && byPost.get(normalizePostUrl(r.postUrl))) || null;
+
+  let imported = 0;
+  const unmatched = new Set<string>();
+  for (const r of rows) {
+    const publicationId = match(r);
+    if (!publicationId) {
+      unmatched.add(r.fileName ?? r.postUrl ?? "?");
+      continue;
+    }
+    const metrics = { downloads: r.downloads, views: r.views };
     await db
       .insert(performance)
-      .values({
-        publicationId: byName.get(r.fileName)!,
-        day: r.day,
-        metrics: { downloads: r.downloads },
-        revenueUsd: r.revenueUsd,
-      })
-      .onConflictDoUpdate({
-        target: [performance.publicationId, performance.day],
-        set: { metrics: { downloads: r.downloads }, revenueUsd: r.revenueUsd },
-      });
+      .values({ publicationId, day: r.day, metrics, revenueUsd: r.revenueUsd })
+      .onConflictDoUpdate({ target: [performance.publicationId, performance.day], set: { metrics, revenueUsd: r.revenueUsd } });
+    imported++;
   }
-  return {
-    imported: matched.length,
-    unmatched: [...new Set(rows.filter((r) => !byName.has(r.fileName)).map((r) => r.fileName))],
-  };
+  return { imported, unmatched: [...unmatched] };
 }
 
 /** Totals and best sellers over the last `days` days, for the dashboard and for Rina. */
@@ -289,6 +297,7 @@ export async function performanceOverview(platform: Platform, days = 30, now = n
     .select({
       day: performance.day,
       downloads: sql<number>`coalesce(sum((${performance.metrics}->>'downloads')::numeric), 0)::float`,
+      views: sql<number>`coalesce(sum((${performance.metrics}->>'views')::numeric), 0)::float`,
       revenue: sql<number>`coalesce(sum(${performance.revenueUsd}), 0)::float`,
     })
     .from(performance)
@@ -301,6 +310,7 @@ export async function performanceOverview(platform: Platform, days = 30, now = n
       title: publications.title,
       fileName: publications.fileName,
       downloads: sql<number>`coalesce(sum((${performance.metrics}->>'downloads')::numeric), 0)::float`,
+      views: sql<number>`coalesce(sum((${performance.metrics}->>'views')::numeric), 0)::float`,
       revenue: sql<number>`coalesce(sum(${performance.revenueUsd}), 0)::float`,
     })
     .from(performance)
@@ -314,6 +324,7 @@ export async function performanceOverview(platform: Platform, days = 30, now = n
     perDay,
     totals: {
       downloads: perDay.reduce((a, b) => a + b.downloads, 0),
+      views: perDay.reduce((a, b) => a + b.views, 0),
       revenueUsd: Math.round(perDay.reduce((a, b) => a + b.revenue, 0) * 100) / 100,
     },
     top,

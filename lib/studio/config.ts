@@ -88,10 +88,33 @@ export const PLATFORM_SPECS = {
     duplicateMaxDistance: 6,
   },
   facebook_reels: {
-    width: 1080,
-    height: 1920,
+    /** 9:16 portrait, at least 1080 px wide (1080x1920 recommended). */
+    aspectRatio: 9 / 16,
+    aspectTolerance: 0.01,
+    minWidth: 1080,
     minDurationSec: 30,
     maxDurationSec: 60,
+    minFps: 23,
+    maxFps: 60,
+    maxBytes: 300 * 1024 * 1024,
     contentTypes: ["video/mp4"],
+    videoCodecs: ["h264"],
+    audioCodecs: ["aac"],
+    /** Integrated loudness window around the -14 LUFS that social platforms normalise to. */
+    minLoudnessLufs: -18,
+    maxLoudnessLufs: -10,
+    /** True peak above this clips after the platform re-encodes. */
+    maxTruePeakDb: -1,
+    duplicateMaxDistance: 6,
+    maxCaptionLength: 2200,
+    maxHashtags: 10,
   },
 } as const;
+
+/**
+ * Facebook channel identity. Meta demonetises unoriginal, mass-produced content, so every
+ * reel must fit the channel niche. Set STUDIO_REELS_NICHE (e.g. "fakta sains singkat").
+ */
+export const REELS_CHANNEL = {
+  niche: process.env.STUDIO_REELS_NICHE?.trim() || null,
+};

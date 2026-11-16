@@ -3,11 +3,11 @@ import { Suspense } from "react";
 import { studioToday } from "@/lib/studio/research-periods";
 import { getResearchSchedule, getRollupData, listResearch } from "@/lib/studio/service";
 import { LatestDaily, ReportHistory, ScheduleToday, WeekTopics } from "../_components/research";
-import { PageHeader } from "../_components/ui";
+import { PageHeader, PlatformTabs, parsePlatform, type PlatformKey } from "../_components/ui";
 
 export const metadata = { title: "Riset · Ryuartistry Studio" };
 
-export default function ResearchPage() {
+export default function ResearchPage({ searchParams }: PageProps<"/dashboard/research">) {
   return (
     <>
       <PageHeader
@@ -16,15 +16,15 @@ export default function ResearchPage() {
         description="Tiga sesi sehari digabung menjadi laporan harian, lalu dirangkum mingguan, bulanan, dan tahunan dari data terstruktur, bukan ringkasan dari ringkasan."
       />
       <Suspense fallback={<p className="text-sm text-muted">Memuat riset…</p>}>
-        <ResearchData />
+        <ResearchData searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function ResearchData() {
+async function ResearchData({ searchParams }: { searchParams: PageProps<"/dashboard/research">["searchParams"] }) {
   await connection();
-  const platform = "adobe_stock" as const;
+  const platform: PlatformKey = parsePlatform((await searchParams).platform);
   const [schedule, week, daily, weekly, monthly, yearly] = await Promise.all([
     getResearchSchedule(platform),
     getRollupData("weekly", platform, studioToday()),
@@ -37,6 +37,9 @@ async function ResearchData() {
 
   return (
     <div className="flex flex-col gap-16">
+      <div className="-mt-6">
+        <PlatformTabs base="/dashboard/research" current={platform} />
+      </div>
       <ScheduleToday schedule={schedule} delay={80} />
       <LatestDaily report={daily[0]} delay={140} />
       <WeekTopics rollup={week} delay={200} />

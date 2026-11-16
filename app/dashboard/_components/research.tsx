@@ -1,6 +1,6 @@
 import type { getResearchSchedule, getRollupData, listResearch } from "@/lib/studio/service";
 import type { TopicWithTrend, Trend } from "@/lib/studio/research-rollup";
-import { Badge, Empty, Panel, Section, table, type Tone } from "./ui";
+import { Badge, Empty, Panel, Section, dec1, fmtDay, table, type Tone } from "./ui";
 
 type Schedule = Awaited<ReturnType<typeof getResearchSchedule>>;
 type Rollup = Awaited<ReturnType<typeof getRollupData>>;
@@ -11,12 +11,12 @@ const DUE_LABEL = (d: Schedule["due"][number]) =>
     ? `Sesi riset slot ${d.slot} (${d.day})${d.overdue ? ", terlambat" : ""}`
     : d.action === "publish_daily"
       ? `Laporan harian ${d.day}`
-      : `Rollup ${d.level} ${d.period.start} – ${d.period.end}`;
+      : `Rollup ${d.level} ${fmtDay(d.period.start)} – ${fmtDay(d.period.end)}`;
 
 export function ScheduleToday({ schedule, delay }: { schedule: Schedule; delay?: number }) {
   return (
     <Section
-      eyebrow={`Hari ini · ${schedule.today} · WIB`}
+      eyebrow={`Hari ini · ${fmtDay(schedule.today)} · WIB`}
       title="Jadwal riset Rina"
       aside={<Badge tone={schedule.due.length ? "warn" : "success"}>{schedule.due.length ? `${schedule.due.length} jatuh tempo` : "semua beres"}</Badge>}
       delay={delay}
@@ -69,7 +69,7 @@ type Opportunity = { topic?: string; keywords?: string[]; rationale?: string; pr
 
 export function LatestDaily({ report, delay }: { report: Reports[number] | undefined; delay?: number }) {
   return (
-    <Section eyebrow="Untuk Shion" title="Laporan harian terbaru" aside={report && <Badge>{report.periodStart}</Badge>} delay={delay}>
+    <Section eyebrow="Untuk Shion" title="Laporan harian terbaru" aside={report && <Badge>{fmtDay(report.periodStart)}</Badge>} delay={delay}>
       {!report ? (
         <Empty>Belum ada laporan harian. Laporan pertama akan membuka siklus produksi.</Empty>
       ) : (
@@ -109,7 +109,7 @@ function ScoreBar({ value }: { value: number }) {
       <div className="hidden h-1.5 w-24 overflow-hidden rounded-full bg-accent-soft sm:block" aria-hidden="true">
         <div className="h-full origin-left rounded-full bg-accent" style={{ transform: `scaleX(${Math.min(1, value / 10)})` }} />
       </div>
-      <span className="w-10 text-right font-mono tabular-nums">{value.toFixed(1)}</span>
+      <span className="w-10 text-right font-mono tabular-nums">{dec1(value)}</span>
     </div>
   );
 }
@@ -118,7 +118,7 @@ export function WeekTopics({ rollup, delay }: { rollup: Rollup; delay?: number }
   const topics: TopicWithTrend[] = rollup.topics.slice(0, 15);
   return (
     <Section
-      eyebrow={`Minggu ini · ${rollup.period.start} – ${rollup.period.end}`}
+      eyebrow={`Minggu ini · ${fmtDay(rollup.period.start)} – ${fmtDay(rollup.period.end)}`}
       title="Topik peluang"
       aside={<Badge>{rollup.children.length} laporan harian</Badge>}
       delay={delay}
@@ -153,8 +153,8 @@ export function WeekTopics({ rollup, delay }: { rollup: Rollup; delay?: number }
                       {t.delta != null && t.trend !== "stable" ? ` ${t.delta > 0 ? "+" : ""}${t.delta}` : ""}
                     </Badge>
                   </td>
-                  <td className={`${table.td} text-right font-mono tabular-nums`}>{t.avgDemand.toFixed(1)}</td>
-                  <td className={`${table.td} text-right font-mono tabular-nums`}>{t.avgCompetition.toFixed(1)}</td>
+                  <td className={`${table.td} text-right font-mono tabular-nums`}>{dec1(t.avgDemand)}</td>
+                  <td className={`${table.td} text-right font-mono tabular-nums`}>{dec1(t.avgCompetition)}</td>
                   <td className={`${table.td} text-right font-mono tabular-nums`}>
                     {t.sessions} / {t.models}
                   </td>
@@ -183,7 +183,7 @@ export function ReportHistory({ reports, delay }: { reports: Reports; delay?: nu
               <div className="flex items-center justify-between gap-3">
                 <Badge tone="accent">{r.level}</Badge>
                 <p className="font-mono text-xs text-subtle">
-                  {r.periodStart} – {r.periodEnd}
+                  {fmtDay(r.periodStart)} – {fmtDay(r.periodEnd)}
                 </p>
               </div>
               <p className="line-clamp-5 whitespace-pre-wrap text-sm leading-relaxed text-muted">{r.summary}</p>

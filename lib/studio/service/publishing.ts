@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { assets, cycles, ideaGraveyard, ideas, publications, reviews, type Platform } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
 import { adobeFileName, buildAdobeCsv, validateAdobeMetadata } from "../adobe";
+import { assetFileName, validateReelMetadata } from "../reels";
 import { ADOBE_CATEGORIES, AUTO_MODE_CRITERIA } from "../config";
 import { decideApproval } from "../workflow";
 import { StudioError, actorName, latestAsset, lockJob, moveJob, type Agent } from "./core";
@@ -35,17 +36,23 @@ export async function submitPublicationPrep(
 
     const id = randomUUID();
     let meta = { title: input.title.trim(), keywords: input.keywords, category: input.category ?? null };
+    let caption = input.caption;
+    let hashtags = input.hashtags;
     let fileName: string | null = null;
-    if (job.platform === "adobe_stock") {
-      try {
+    try {
+      if (job.platform === "adobe_stock") {
         const valid = validateAdobeMetadata(input);
         meta = { ...valid, category: String(valid.category) };
-      } catch (e) {
-        throw new StudioError((e as Error).message);
+        fileName = adobeFileName(meta.title, id);
+      } else {
+        const valid = validateReelMetadata(input);
+        meta = { ...meta, title: valid.title };
+        caption = valid.caption;
+        hashtags = valid.hashtags;
+        fileName = assetFileName(valid.title, id, "mp4");
       }
-      fileName = adobeFileName(meta.title, id);
-    } else if (!input.caption?.trim()) {
-      throw new StudioError("Caption wajib diisi untuk reels");
+    } catch (e) {
+      throw new StudioError((e as Error).message);
     }
 
     const asset = await latestAsset(tx, jobId);
@@ -63,9 +70,9 @@ export async function submitPublicationPrep(
       assetId: asset.id,
       platform: job.platform,
       title: meta.title,
-      caption: input.caption,
+      caption,
       keywords: meta.keywords,
-      hashtags: input.hashtags,
+      hashtags,
       category: meta.category,
       fileName,
       aiLabel: input.aiLabel,
@@ -73,7 +80,7 @@ export async function submitPublicationPrep(
       scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
     });
     await moveJob(tx, job, "awaiting_approval", actorName(agent), "Metadata publikasi siap, menunggu approval manusia");
-    return { publicationId: id, fileName, keywords: meta.keywords, nextStatus: "awaiting_approval" as const };
+    return { publicationId: id, fileName, keywords: meta.keywords, hashtags, nextStatus: "awaiting_approval" as const };
   });
 }
 

@@ -132,7 +132,7 @@ export function ButtonIcon({ children, inverted = false }: { children: ReactNode
   );
 }
 
-export const input = `w-full rounded-2xl bg-core-muted px-4 py-2.5 text-sm text-text ring-1 ring-hairline placeholder:text-subtle transition-shadow ${fluid} focus:outline-none focus:ring-2 focus:ring-accent`;
+export const input = `w-full rounded-2xl bg-core-muted px-4 py-2.5 text-sm text-text ring-1 ring-hairline placeholder:text-subtle transition-shadow ${fluid} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`;
 
 export const table = {
   head: "text-left text-[11px] uppercase tracking-[0.14em] text-subtle",
@@ -167,6 +167,54 @@ export function pct(x: number | null): string {
   return x == null ? "–" : `${Math.round(x * 100)}%`;
 }
 
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const DEC1 = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const DEC2 = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** One decimal, locale-aware (e.g. 7,5). */
+export const dec1 = (x: number) => DEC1.format(x);
+export const dec2 = (x: number) => DEC2.format(x);
+
 export function usd(x: number): string {
-  return `$${x.toFixed(2)}`;
+  return USD.format(x);
+}
+
+const DATE_FMT = new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" });
+const DAY_FMT = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
+
+/** Date + time zone formatting through Intl, in studio time. */
+export function fmtDate(d: Date): string {
+  return DATE_FMT.format(d);
+}
+
+/** "2026-11-16" → "16 Nov" (calendar day strings carry no time zone). */
+export function fmtDay(day: string): string {
+  return DAY_FMT.format(new Date(`${day}T00:00:00Z`));
+}
+
+export const PLATFORM_LABEL = { adobe_stock: "Adobe Stock", facebook_reels: "Facebook Reels" } as const;
+export type PlatformKey = keyof typeof PLATFORM_LABEL;
+
+export function parsePlatform(v: unknown): PlatformKey {
+  return v === "facebook_reels" ? "facebook_reels" : "adobe_stock";
+}
+
+/** Platform switch kept in the URL (?platform=), so the view can be linked and reloaded. */
+export function PlatformTabs({ base, current }: { base: string; current: PlatformKey }) {
+  return (
+    <nav aria-label="Pilih platform" className="inline-flex rounded-full bg-shell p-1 ring-1 ring-hairline">
+      {(Object.keys(PLATFORM_LABEL) as PlatformKey[]).map((p) => (
+        <a
+          key={p}
+          href={`${base}?platform=${p}`}
+          aria-current={p === current ? "page" : undefined}
+          className={`rounded-full px-4 py-1.5 text-sm transition-[background-color,color] duration-500 ease-fluid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+            p === current ? "bg-core text-text shadow-[var(--ambient)] ring-1 ring-hairline" : "text-muted hover:text-text"
+          }`}
+        >
+          {PLATFORM_LABEL[p]}
+        </a>
+      ))}
+    </nav>
+  );
 }

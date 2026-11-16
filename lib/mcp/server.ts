@@ -129,7 +129,7 @@ export function createStudioServer(agent: Agent): McpServer {
       "submit_storyboard",
       {
         description:
-          "Kirim naskah + storyboard reels untuk job berstatus storyboard_pending. Sertakan hook 3 detik pertama dan daftar scene (durasi, visual, narasi, teks layar), musik/mood, dan CTA.",
+          "Kirim naskah + storyboard reels untuk job berstatus storyboard_pending. Wajib: hook (apa yang terjadi di 3 detik pertama) dan scenes [{ duration_sec, visual, narration dan/atau on_screen_text }]. Total durasi 30-60 detik, scene pertama maksimal 5 detik. Opsional: music_mood, cta, voice_style. Server menolak storyboard yang tidak memenuhi ini sebelum Lukas menilainya.",
         inputSchema: {
           job_id: z.string().uuid(),
           content: z
@@ -207,7 +207,7 @@ export function createStudioServer(agent: Agent): McpServer {
       "submit_asset",
       {
         description:
-          "Kirim aset yang sudah di-upload. Server membaca file gambar langsung (format JPEG, sRGB, 4-100 MP, maks 45 MB, kemiripan dengan aset lain) lalu meneruskan ke Kechlyn atau mengembalikannya untuk revisi. Untuk video, isi width/height/duration_sec.",
+          "Kirim aset yang sudah di-upload. Server membaca file langsung. Gambar: JPEG, sRGB, 4-100 MP, maks 45 MB. Reels: MP4 H.264 + AAC, 9:16 vertikal, lebar minimal 1080 px, 30-60 detik, 23-60 fps, loudness sekitar -14 LUFS (-18 s/d -10), true peak maksimal -1 dBTP, maks 300 MB. Keduanya dicek kemiripan dengan aset lain. Hasil: diteruskan ke Kechlyn atau dikembalikan untuk revisi.",
         inputSchema: {
           job_id: z.string().uuid(),
           s3_key: z.string(),
@@ -263,7 +263,7 @@ export function createStudioServer(agent: Agent): McpServer {
       "submit_publication_prep",
       {
         description:
-          "Siapkan metadata publikasi untuk job berstatus publish_prep (hanya setelah aset lolos). Adobe Stock: judul bahasa Inggris maks 70 karakter tanpa koma; 5-49 keyword diurutkan dari yang paling relevan (10 teratas paling penting); kategori angka 1-21 (lihat adobeCategories di get_job); jangan sebut nama tool AI. Reels: caption, hashtag, jadwal. ai_label wajib true.",
+          "Siapkan metadata publikasi untuk job berstatus publish_prep (hanya setelah aset lolos). Adobe Stock: judul bahasa Inggris maks 70 karakter tanpa koma; 5-49 keyword diurutkan dari yang paling relevan (10 teratas paling penting); kategori angka 1-21 (lihat adobeCategories di get_job); jangan sebut nama tool AI. Reels: title internal, caption (kalimat pertama memancing orang menonton sampai habis, maks 2200 karakter), maks 10 hashtag, scheduled_for opsional. ai_label wajib true.",
         inputSchema: {
           job_id: z.string().uuid(),
           title: z.string().min(3),

@@ -133,10 +133,10 @@ async function run() {
   });
   const today = new Date().toISOString().slice(0, 10);
   const imp1 = await importPerformance("adobe_stock", [
-    { fileName: "smoke-paper-00000000.jpg", day: today, downloads: 2, revenueUsd: 0.66 },
-    { fileName: "unknown.jpg", day: today, downloads: 1, revenueUsd: 0.33 },
+    { fileName: "smoke-paper-00000000.jpg", postUrl: null, day: today, downloads: 2, views: 0, revenueUsd: 0.66 },
+    { fileName: "unknown.jpg", postUrl: null, day: today, downloads: 1, views: 0, revenueUsd: 0.33 },
   ]);
-  await importPerformance("adobe_stock", [{ fileName: "smoke-paper-00000000.jpg", day: today, downloads: 3, revenueUsd: 0.99 }]);
+  await importPerformance("adobe_stock", [{ fileName: "smoke-paper-00000000.jpg", postUrl: null, day: today, downloads: 3, views: 0, revenueUsd: 0.99 }]);
   const perf = await performanceOverview("adobe_stock", 30);
   expect(imp1.imported === 1 && imp1.unmatched[0] === "unknown.jpg", JSON.stringify(imp1));
   expect(perf.totals.downloads === 3 && perf.totals.revenueUsd === 0.99, `re-import should overwrite: ${JSON.stringify(perf.totals)}`);

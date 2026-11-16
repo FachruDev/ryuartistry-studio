@@ -1,16 +1,20 @@
 import type { Platform } from "@/lib/db/schema";
 import { PLATFORM_SPECS } from "./config";
 import type { ImageFacts } from "./image-inspect";
+import type { VideoFacts } from "./video-probe";
 
 export type AssetFacts = {
   contentType: string;
   bytes: number;
-  /** Declared by Linda; for images these are replaced by `image` when available. */
+  /** Declared by Linda; replaced by `image` / `video` facts read from the file. */
   width: number | null;
   height: number | null;
   durationSec: number | null;
-  /** Properties read from the file itself (images only). */
+  /** Properties read from the file itself. */
   image?: ImageFacts;
+  video?: VideoFacts;
+  /** Set when the file could not be inspected at all. */
+  inspectError?: string;
   /** Closest earlier asset on the same platform, by dHash. */
   nearestDuplicate?: { assetId: string; distance: number } | null;
 };
@@ -62,20 +66,54 @@ function checkAdobeImage(a: AssetFacts): string[] {
   return problems;
 }
 
-/** Reels still use the declared values until Phase 3 adds ffprobe. */
+/** Reels: every value comes from ffprobe/ffmpeg on the uploaded file. */
 function checkReel(a: AssetFacts): string[] {
   const spec = PLATFORM_SPECS.facebook_reels;
   const problems: string[] = [];
-  if (!(spec.contentTypes as readonly string[]).includes(a.contentType)) {
-    problems.push(`Format harus ${spec.contentTypes.join("/")}, bukan ${a.contentType}`);
+  const v = a.video;
+  if (a.inspectError || !v || !v.videoCodec) {
+    problems.push(a.inspectError ?? "File tidak bisa dibaca sebagai video");
+    return problems;
   }
-  if (a.width !== spec.width || a.height !== spec.height) {
-    problems.push(`Ukuran harus ${spec.width}x${spec.height} (9:16), bukan ${a.width}x${a.height}`);
+  if (a.contentType !== "video/mp4" || !v.container?.includes("mp4")) {
+    problems.push(`Kontainer harus MP4 (terbaca: ${v.container ?? "?"})`);
   }
-  if (a.durationSec === null) {
-    problems.push("Durasi wajib diisi");
-  } else if (a.durationSec < spec.minDurationSec || a.durationSec > spec.maxDurationSec) {
-    problems.push(`Durasi ${a.durationSec} detik, harus ${spec.minDurationSec}-${spec.maxDurationSec} detik`);
+  if (a.bytes > spec.maxBytes) problems.push(`Ukuran file ${(a.bytes / 1024 / 1024).toFixed(0)} MB, maksimal ${spec.maxBytes / 1024 / 1024} MB`);
+
+  if (v.width && v.height) {
+    const ratio = v.width / v.height;
+    if (Math.abs(ratio - spec.aspectRatio) > spec.aspectTolerance) {
+      problems.push(`Rasio ${v.width}x${v.height} bukan 9:16 vertikal`);
+    } else if (v.width < spec.minWidth) {
+      problems.push(`Lebar ${v.width}px, minimal ${spec.minWidth}px (disarankan 1080x1920)`);
+    }
+  }
+  if (v.durationSec == null || v.durationSec < spec.minDurationSec || v.durationSec > spec.maxDurationSec) {
+    problems.push(`Durasi ${v.durationSec ?? "?"} detik, harus ${spec.minDurationSec}-${spec.maxDurationSec} detik`);
+  }
+  if (v.fps != null && (v.fps < spec.minFps || v.fps > spec.maxFps)) problems.push(`Frame rate ${v.fps} fps, harus ${spec.minFps}-${spec.maxFps}`);
+  if (!(spec.videoCodecs as readonly string[]).includes(v.videoCodec)) problems.push(`Codec video ${v.videoCodec}, harus H.264`);
+
+  if (!v.hasAudio) {
+    problems.push("Tidak ada audio; reels butuh voiceover atau musik");
+  } else {
+    if (v.audioCodec && !(spec.audioCodecs as readonly string[]).includes(v.audioCodec)) problems.push(`Codec audio ${v.audioCodec}, harus AAC`);
+    if (v.loudnessLufs == null) {
+      problems.push("Audio hening (loudness tidak terukur)");
+    } else if (v.loudnessLufs < spec.minLoudnessLufs) {
+      problems.push(`Audio terlalu pelan (${v.loudnessLufs} LUFS), targetkan sekitar -14 LUFS`);
+    } else if (v.loudnessLufs > spec.maxLoudnessLufs) {
+      problems.push(`Audio terlalu keras (${v.loudnessLufs} LUFS), targetkan sekitar -14 LUFS`);
+    }
+    if (v.truePeakDb != null && v.truePeakDb > spec.maxTruePeakDb) {
+      problems.push(`True peak ${v.truePeakDb} dBTP, maksimal ${spec.maxTruePeakDb} (berisiko clipping)`);
+    }
+  }
+
+  if (a.nearestDuplicate && a.nearestDuplicate.distance <= spec.duplicateMaxDistance) {
+    problems.push(
+      `Terlalu mirip dengan reel lain (${a.nearestDuplicate.assetId.slice(0, 8)}, jarak rata-rata ${a.nearestDuplicate.distance}/64); Meta bisa menganggapnya konten tidak orisinal`,
+    );
   }
   return problems;
 }

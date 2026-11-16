@@ -1,6 +1,6 @@
 # Ryuartistry Studio — Dokumen Desain
 
-Status: **Draf v0.4** (Fase 0–2 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
+Status: **Draf v0.5** (Fase 0–3 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
 
 Studio konten otomatis berbasis multi-agen. Agen-agen AI bekerja dalam siklus riset → ide → review → eksekusi → review → publikasi. Mereka terhubung lewat **MCP server milik sendiri (`ryuartistry-studio`)** yang menjadi "kantor": antrian kerja, aturan, dan arsip.
 
@@ -329,7 +329,7 @@ Data performa adalah sinyal utama yang menunjukkan ide mana yang benar-benar men
 | **0 — Fondasi** ✅ | Skema DB, MCP server dengan tools dasar, S3, dashboard status sederhana |
 | **1 — Gambar manual-assist** ✅ | Alur gambar lengkap, pemeriksaan file asli + cek duplikat, approval manusia dengan skor, kit upload + CSV Adobe, pencatatan hasil Adobe, kalibrasi rubrik, playbook agen |
 | **2 — Riset & rollup** ✅ | Jadwal riset WIB, sesi per model per slot, daily merge + skor peluang, rollup mingguan/bulanan/tahunan dari data terstruktur, impor performa CSV, halaman Riset & Performa, tema terang/gelap |
-| **3 — Reels** | Storyboard gate, produksi Linda (Claude), review Kechlyn, approval manusia |
+| **3 — Reels** ✅ | Storyboard gate dengan validasi durasi/hook, pembacaan video asli (ffprobe/ffmpeg: codec, 9:16, durasi, loudness, true peak, keyframe + cek duplikat), metadata reels, kit posting Facebook, pencatatan pembatasan Meta, impor tayangan per link, login sungguhan, panel admin sidebar + topbar |
 | **4 — Otomasi** | Scheduler stabil, pindahkan langkah yang sering jalan ke API, publikasi otomatis per platform |
 
 Syarat sebuah platform boleh publikasi otomatis (usulan):
@@ -406,7 +406,7 @@ Kebijakan dapat berubah. Rina memeriksa pembaruan kebijakan kedua platform secar
 ## 15. Keputusan yang Masih Terbuka
 
 1. **Model Kechlyn untuk reels.** Linda reels memakai Claude. Jika Kechlyn juga Claude, ada risiko menilai karya model sendiri. Opsi: Gemini sebagai penilai video (dapat menonton video langsung), atau Claude dengan rubrik ketat + kalibrasi manusia.
-2. **Niche kanal Facebook.**
+2. **Niche kanal Facebook.** Diisi lewat `STUDIO_REELS_NICHE`; sampai diisi, dashboard dan konteks agen menampilkan peringatan.
 3. **Generator video/aset visual** yang dipakai Linda di dalam produksi reels (selain komposisi lewat kode).
 4. **Jalur publikasi**: upload manual vs integrasi API untuk Adobe Stock dan Meta.
 5. **Hosting**: lokasi deploy MCP server + Postgres (misalnya Neon) + S3.

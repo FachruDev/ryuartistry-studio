@@ -3,7 +3,8 @@ import { and, asc, desc, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { cycles, ideaGraveyard, ideas, jobs, researchReports, reviews, type AgentRole } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
-import { ADOBE_CATEGORIES, LIMITS, PLATFORM_SPECS, ROLE_QUEUES } from "../config";
+import { ADOBE_CATEGORIES, LIMITS, PLATFORM_SPECS, REELS_CHANNEL, ROLE_QUEUES } from "../config";
+import { validateStoryboard } from "../reels";
 import { getRubric, scoreReview, type ReviewInput } from "../rubrics";
 import { decideIdeaReview, decideStoryboardReview } from "../workflow";
 import {
@@ -90,6 +91,11 @@ export async function getJobContext(jobId: string) {
     limits: LIMITS,
     platformSpec: PLATFORM_SPECS[job.platform],
     adobeCategories: job.platform === "adobe_stock" ? ADOBE_CATEGORIES : undefined,
+    /** Channel identity every reel must fit (Meta demonetises unoriginal mass content). */
+    reelsChannel:
+      job.platform === "facebook_reels"
+        ? { niche: REELS_CHANNEL.niche ?? "BELUM DITETAPKAN: minta manusia mengisi STUDIO_REELS_NICHE" }
+        : undefined,
     research: report
       ? { id: report.id, period: report.periodStart, summary: report.summary, opportunities: report.opportunities }
       : null,
@@ -117,6 +123,10 @@ export async function getJobContext(jobId: string) {
           durationSec: asset.durationSec,
           autoCheck: asset.autoCheck,
           downloadUrl: await presignDownload(asset.s3Key),
+          /** Reels: codecs, fps, loudness (LUFS) and true peak read from the file. */
+          video: asset.media?.video ?? null,
+          /** Reels: 3 keyframes (hook, middle, end) side by side, for reviewers that cannot play video. */
+          framesUrl: asset.media?.framesKey ? await presignDownload(asset.media.framesKey) : null,
         }
       : null,
     rubric: rubricId[job.status] ? getRubric(rubricId[job.status]!) : null,
@@ -147,6 +157,9 @@ export async function submitStoryboard(agent: Agent, jobId: string, content: Rec
   return db.transaction(async (tx) => {
     const job = await lockJob(tx, jobId, ["storyboard_pending"]);
     if (job.line !== "reel") throw new StudioError("Storyboard hanya untuk lini reels");
+    const { totalSec, problems } = validateStoryboard(content);
+    if (problems.length) throw new StudioError(`Storyboard belum lengkap:\n- ${problems.join("\n- ")}`);
+    content = { ...content, total_duration_sec: totalSec };
     const prev = await latestIdea(tx, jobId, "storyboard");
     const [row] = await tx
       .insert(ideas)

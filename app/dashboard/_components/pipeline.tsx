@@ -1,6 +1,6 @@
 import type { JobStatus } from "@/lib/db/schema";
 import type { dashboardSnapshot } from "@/lib/studio/service";
-import { Badge, Panel, Section, table, type Tone } from "./ui";
+import { Badge, Panel, Section, fmtDay, table, type Tone } from "./ui";
 
 type Snapshot = Awaited<ReturnType<typeof dashboardSnapshot>>;
 
@@ -78,7 +78,7 @@ export function HaltedCycles({ halted }: { halted: Snapshot["halted"] }) {
             <Badge tone="warn">dihentikan</Badge>
             <p className="flex-1 text-sm">{c.haltReason}</p>
             <p className="font-mono text-xs text-subtle">
-              {c.platform} · {c.day} · {c.id.slice(0, 8)}
+              {c.platform} · {fmtDay(c.day)} · {c.id.slice(0, 8)}
             </p>
           </Panel>
         ))}

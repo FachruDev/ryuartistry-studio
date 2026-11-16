@@ -122,8 +122,8 @@ export function AdobeResults({ submitted, delay }: { submitted: Submitted; delay
                   <p className="truncate font-medium">{p.title}</p>
                   <p className="truncate font-mono text-xs text-subtle">{p.fileName}</p>
                 </div>
-                <input name="externalId" placeholder="ID Adobe (opsional)" className={`${input} lg:w-44`} aria-label="ID Adobe" />
-                <input name="note" placeholder="Alasan jika ditolak" className={`${input} lg:flex-1`} aria-label="Alasan penolakan" />
+                <input name="externalId" autoComplete="off" spellCheck={false} placeholder="ID Adobe (opsional)…" className={`${input} lg:w-44`} aria-label="ID Adobe" />
+                <input name="note" autoComplete="off" placeholder="Alasan jika ditolak…" className={`${input} lg:flex-1`} aria-label="Alasan penolakan" />
                 <div className="flex gap-2">
                   <button name="result" value="accepted" className={btn.primary}>
                     Diterima

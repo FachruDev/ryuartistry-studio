@@ -4,43 +4,53 @@ import { addDays } from "@/lib/studio/research-periods";
 import { performanceOverview } from "@/lib/studio/service";
 import { BarChart } from "../_components/bar-chart";
 import { PerformanceImport } from "../_components/performance-import";
-import { Badge, Empty, PageHeader, Panel, Section, Stat, table, usd } from "../_components/ui";
+import { Badge, Empty, PageHeader, Panel, PlatformTabs, Section, Stat, fmtDay, parsePlatform, table, usd } from "../_components/ui";
 
 export const metadata = { title: "Performa · Ryuartistry Studio" };
 
-export default function PerformancePage() {
+export default function PerformancePage({ searchParams }: PageProps<"/dashboard/performance">) {
   return (
     <>
       <PageHeader
-        eyebrow="Adobe Stock · 30 hari"
-        title="Performa penjualan"
-        description="Data penjualan kembali ke Rina dan Shion, supaya ide berikutnya mengikuti apa yang benar-benar laku, bukan hanya yang dinilai bagus."
+        eyebrow="Wawasan · 30 hari"
+        title="Performa"
+        description="Penjualan dan tayangan kembali ke Rina dan Shion, supaya ide berikutnya mengikuti apa yang benar-benar laku, bukan hanya yang dinilai bagus."
       />
       <Suspense fallback={<p className="text-sm text-muted">Memuat performa…</p>}>
-        <PerformanceData />
+        <PerformanceData searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function PerformanceData() {
+async function PerformanceData({ searchParams }: { searchParams: PageProps<"/dashboard/performance">["searchParams"] }) {
   await connection();
-  const perf = await performanceOverview("adobe_stock", 30);
+  const platform = parsePlatform((await searchParams).platform);
+  const reels = platform === "facebook_reels";
+  const perf = await performanceOverview(platform, 30);
+  const NUM = new Intl.NumberFormat("id-ID");
 
   // Fill every day of the window so gaps show as empty columns, not missing ones.
   const byDay = new Map(perf.perDay.map((d) => [d.day, d]));
   const days = Array.from({ length: 30 }, (_, i) => addDays(perf.period.start, i));
   const revenue = days.map((day) => ({ day, value: byDay.get(day)?.revenue ?? 0 }));
-  const downloads = days.map((day) => ({ day, value: byDay.get(day)?.downloads ?? 0 }));
+  const units = days.map((day) => ({ day, value: (reels ? byDay.get(day)?.views : byDay.get(day)?.downloads) ?? 0 }));
 
   return (
     <div className="flex flex-col gap-16">
+      <div className="-mt-6">
+        <PlatformTabs base="/dashboard/performance" current={platform} />
+      </div>
       <div className="rise grid gap-4 md:grid-cols-12" style={{ animationDelay: "80ms" }}>
         <div className="md:col-span-4">
-          <Stat label="Pendapatan" value={usd(perf.totals.revenueUsd)} hint={`${perf.period.start} – ${perf.period.end}`} />
+          <Stat label="Pendapatan" value={usd(perf.totals.revenueUsd)} hint={`${fmtDay(perf.period.start)} – ${fmtDay(perf.period.end)}`} />
         </div>
         <div className="md:col-span-4">
-          <Stat label="Unduhan" value={perf.totals.downloads.toLocaleString("id-ID")} hint="lisensi terjual" />
+          <Stat
+            label={reels ? "Tayangan" : "Unduhan"}
+            value={NUM.format(reels ? perf.totals.views : perf.totals.downloads)}
+            hint={reels ? "plays reel" : "lisensi terjual"}
+          />
         </div>
         <div className="md:col-span-4">
           <Stat label="Aset menghasilkan" value={perf.top.length} hint="minimal satu penjualan" />
@@ -53,7 +63,7 @@ async function PerformanceData() {
             <BarChart title="Pendapatan (USD)" data={revenue} unit="usd" />
           </Panel>
           <Panel coreClassName="p-6">
-            <BarChart title="Unduhan" data={downloads} unit="count" />
+            <BarChart title={reels ? "Tayangan" : "Unduhan"} data={units} unit="count" />
           </Panel>
         </div>
       </Section>
@@ -68,7 +78,7 @@ async function PerformanceData() {
                 <thead className={table.head}>
                   <tr>
                     <th className={table.th}>Aset</th>
-                    <th className={`${table.th} text-right`}>Unduhan</th>
+                    <th className={`${table.th} text-right`}>{reels ? "Tayangan" : "Unduhan"}</th>
                     <th className={`${table.th} text-right`}>Pendapatan</th>
                   </tr>
                 </thead>
@@ -79,7 +89,7 @@ async function PerformanceData() {
                         {t.title}
                         <span className="mt-0.5 block font-mono text-xs text-subtle">{t.fileName}</span>
                       </td>
-                      <td className={`${table.td} text-right font-mono tabular-nums`}>{t.downloads}</td>
+                      <td className={`${table.td} text-right font-mono tabular-nums`}>{NUM.format(reels ? t.views : t.downloads)}</td>
                       <td className={`${table.td} text-right font-mono tabular-nums`}>{usd(t.revenue)}</td>
                     </tr>
                   ))}
@@ -123,7 +133,7 @@ async function PerformanceData() {
 
       <Section eyebrow="Data masuk" title="Impor performa" delay={280}>
         <Panel coreClassName="p-6 sm:p-8">
-          <PerformanceImport />
+          <PerformanceImport platform={platform} />
         </Panel>
       </Section>
     </div>

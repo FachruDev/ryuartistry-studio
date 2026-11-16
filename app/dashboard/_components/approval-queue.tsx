@@ -22,10 +22,10 @@ export function ApprovalQueue({ pending, delay }: { pending: Pending; delay?: nu
             <Panel key={pub.id} coreClassName="flex flex-col overflow-hidden">
               <div className="bg-core-muted p-3">
                 {asset.contentType.startsWith("video/") ? (
-                  <video src={url} controls className="max-h-80 w-full rounded-2xl bg-black object-contain" />
+                  <video src={url} controls preload="metadata" playsInline aria-label={`Pratinjau ${pub.title}`} className="max-h-[28rem] w-full rounded-2xl bg-black object-contain" />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element -- presigned URL from private storage
-                  <img src={url} alt={pub.title} className="max-h-80 w-full rounded-2xl object-contain" />
+                  <img src={url} alt={pub.title} width={asset.width ?? undefined} height={asset.height ?? undefined} loading="lazy" decoding="async" className="h-auto max-h-80 w-full rounded-2xl object-contain" />
                 )}
               </div>
               <div className="flex flex-col gap-4 p-5">
@@ -58,6 +58,8 @@ export function ApprovalQueue({ pending, delay }: { pending: Pending; delay?: nu
                       id={`score-${pub.id}`}
                       type="number"
                       name="humanScore"
+                      inputMode="numeric"
+                      autoComplete="off"
                       min={1}
                       max={10}
                       required
@@ -66,7 +68,7 @@ export function ApprovalQueue({ pending, delay }: { pending: Pending; delay?: nu
                     />
                     <span className="text-xs text-subtle">untuk kalibrasi Kechlyn</span>
                   </div>
-                  <textarea name="note" placeholder="Catatan (wajib jika ditolak)" className={input} rows={2} />
+                  <textarea name="note" autoComplete="off" placeholder="Catatan (wajib jika ditolak)…" className={input} rows={2} />
                   <div className="flex flex-wrap gap-2">
                     <button name="decision" value="approve" className={btn.primary}>
                       Setujui

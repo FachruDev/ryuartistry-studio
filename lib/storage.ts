@@ -1,5 +1,8 @@
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { createWriteStream } from "node:fs";
+import type { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 /** Private bucket for studio assets. Assets are only reachable through presigned URLs. */
 export const ASSET_BUCKET = process.env.S3_BUCKET_PRIVATE ?? "storage-private";
@@ -42,6 +45,18 @@ export function presignDownload(key: string, expiresIn = 3600, downloadAs?: stri
     }),
     { expiresIn },
   );
+}
+
+/** Writes a small server-generated object (e.g. a keyframe contact sheet). */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3().send(new PutObjectCommand({ Bucket: ASSET_BUCKET, Key: key, Body: body, ContentType: contentType }));
+}
+
+/** Streams an object to a local file without holding it in memory (videos). */
+export async function downloadToFile(key: string, path: string): Promise<void> {
+  const res = await s3().send(new GetObjectCommand({ Bucket: ASSET_BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`Object ${key} has no body`);
+  await pipeline(res.Body as Readable, createWriteStream(path));
 }
 
 /** Reads a whole object into memory. Callers check the size with headObject first. */

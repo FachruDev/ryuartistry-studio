@@ -14,6 +14,7 @@ import sharp from "sharp";
 import { db } from "@/lib/db";
 import { assets, cycles, ideaGraveyard, ideas, jobs, publications, reviews, transitions } from "@/lib/db/schema";
 import { ASSET_BUCKET } from "@/lib/storage";
+import { SESSION_COOKIE, createSessionToken } from "@/lib/auth/session";
 import { calibrationStats, decidePublication, markSubmitted, recordPlatformResult } from "@/lib/studio/service";
 
 const args = process.argv.slice(2);
@@ -148,12 +149,14 @@ async function run() {
   step(`metadata valid: file ${pub.fileName}, keyword dinormalisasi jadi ${pub.keywords.length}`);
 
   await decidePublication(pub.publicationId, true, 7, "Bagus");
-  const auth = `Basic ${Buffer.from(`${process.env.STUDIO_DASHBOARD_USER ?? "admin"}:${process.env.STUDIO_DASHBOARD_PASSWORD}`).toString("base64")}`;
-  expect((await fetch(new URL("/dashboard/kit/adobe-csv", base))).status === 401, "CSV must need login");
-  const csv = await (await fetch(new URL("/dashboard/kit/adobe-csv", base), { headers: { Authorization: auth } })).text();
-  expect(csv.startsWith("Filename,Title,Keywords,Category,Releases") && csv.includes(pub.fileName), `CSV wrong:\n${csv}`);
-  const dash = await (await fetch(new URL("/dashboard", base), { headers: { Authorization: auth } })).text();
-  expect(dash.includes("Kit upload") && dash.includes(pub.fileName), "dashboard kit missing item");
+  const cookie = `${SESSION_COOKIE}=${createSessionToken("smoke")}`;
+  const anon = await fetch(new URL("/dashboard/kit/adobe-csv", base), { redirect: "manual" });
+  expect(anon.status === 307 && anon.headers.get("location")?.includes("/login"), `CSV must need login, got ${anon.status}`);
+  const csv = await (await fetch(new URL("/dashboard/kit/adobe-csv", base), { headers: { Cookie: cookie } })).text();
+  expect(csv.startsWith("Filename,Title,Keywords,Category,Releases") && csv.includes(pub.fileName), `CSV wrong:
+${csv}`);
+  const dash = await (await fetch(new URL("/dashboard/adobe", base), { headers: { Cookie: cookie } })).text();
+  expect(dash.includes("Kit upload") && dash.includes(pub.fileName), "Adobe page kit missing item");
   step("approval (skor manusia 7) → kit upload + CSV Adobe berisi file tersebut");
 
   // Duplicate detection: same image in another job.

@@ -2,10 +2,12 @@
 import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { assets, jobs, reviews, type FailureDiagnosis, type Platform } from "@/lib/db/schema";
-import { assetKey, getObjectBytes, headObject, presignUpload } from "@/lib/storage";
+import { assetKey, getObjectBytes, headObject, presignUpload, putObject } from "@/lib/storage";
 import { runAutoCheck } from "../auto-check";
 import { PLATFORM_SPECS } from "../config";
 import { hammingDistance, inspectImage, type ImageFacts } from "../image-inspect";
+import { inspectVideo } from "../video-inspect";
+import { videoDistance, type VideoFacts } from "../video-probe";
 import { getRubric, scoreReview, type ReviewInput } from "../rubrics";
 import { decideAutoCheck, decideFinalReview } from "../workflow";
 import { StudioError, actorName, applyDecision, latestAsset, lockJob, moveJob, rubricForAsset, type Agent } from "./core";
@@ -54,13 +56,27 @@ export async function submitAsset(
   const [current] = await db.select({ platform: jobs.platform }).from(jobs).where(eq(jobs.id, jobId));
   if (!current) throw new StudioError(`Job ${jobId} tidak ditemukan`);
 
-  // Image facts come from the file itself, read before the transaction (network + decode).
+  // Facts come from the file itself, read before the transaction (network + decode / ffmpeg).
   let image: ImageFacts | undefined;
-  let nearestDuplicate: { assetId: string; distance: number } | null = null;
+  let video: VideoFacts | undefined;
+  let inspectError: string | undefined;
+  let framesKey: string | null = null;
+  let hash: string | null = null;
+  const nextVersion = ((await latestAsset(db, jobId))?.version ?? 0) + 1;
   if (current.platform === "adobe_stock" && head.bytes <= PLATFORM_SPECS.adobe_stock.maxBytes) {
     image = await inspectImage(await getObjectBytes(input.s3Key));
-    if (image.dhash) nearestDuplicate = await findNearestDuplicate(current.platform, jobId, image.dhash);
+    hash = image.dhash;
+  } else if (current.platform === "facebook_reels" && head.bytes <= PLATFORM_SPECS.facebook_reels.maxBytes) {
+    const inspected = await inspectVideo(input.s3Key);
+    video = inspected.facts;
+    inspectError = inspected.error;
+    hash = video.frameHashes.length ? video.frameHashes.join("") : null;
+    if (inspected.contactSheet) {
+      framesKey = assetKey(jobId, nextVersion, "jpg").replace(/\.jpg$/, "-frames.jpg");
+      await putObject(framesKey, inspected.contactSheet, "image/jpeg");
+    }
   }
+  const nearestDuplicate = hash ? await findNearestDuplicate(current.platform, jobId, hash) : null;
 
   return db.transaction(async (tx) => {
     const job = await lockJob(tx, jobId, ["executing", "exec_revision"]);
@@ -72,6 +88,8 @@ export async function submitAsset(
       height: input.height,
       durationSec: input.durationSec,
       image,
+      video,
+      inspectError,
       nearestDuplicate,
     });
     const [asset] = await tx
@@ -82,10 +100,11 @@ export async function submitAsset(
         s3Key: input.s3Key,
         contentType: input.contentType,
         bytes: head.bytes,
-        width: image?.width ?? input.width,
-        height: image?.height ?? input.height,
-        durationSec: input.durationSec,
-        phash: image?.dhash ?? null,
+        width: image?.width ?? video?.width ?? input.width,
+        height: image?.height ?? video?.height ?? input.height,
+        durationSec: video?.durationSec ?? input.durationSec,
+        phash: hash,
+        media: video ? { video: { ...video, frameHashes: undefined }, framesKey } : null,
         autoCheck: check,
         notes: input.notes,
       })
@@ -104,8 +123,11 @@ export async function submitAsset(
   });
 }
 
+/** Splits a stored hash into 16-hex-char frame hashes (images have one, reels three). */
+const frames = (h: string) => h.match(/.{16}/g) ?? [];
+
 /**
- * Closest earlier asset on the same platform from other jobs, by dHash distance.
+ * Closest earlier asset on the same platform from other jobs, by (average frame) dHash distance.
  * Linear scan: fine for thousands of assets; move to a bit-index if the library grows large.
  */
 async function findNearestDuplicate(platform: Platform, jobId: string, dhash: string) {
@@ -116,8 +138,8 @@ async function findNearestDuplicate(platform: Platform, jobId: string, dhash: st
     .where(and(eq(jobs.platform, platform), ne(assets.jobId, jobId), isNotNull(assets.phash)));
   let best: { assetId: string; distance: number } | null = null;
   for (const r of rows) {
-    const distance = hammingDistance(dhash, r.phash!);
-    if (!best || distance < best.distance) best = { assetId: r.id, distance };
+    const distance = videoDistance(frames(dhash), frames(r.phash!), hammingDistance);
+    if (distance != null && (!best || distance < best.distance)) best = { assetId: r.id, distance };
   }
   return best;
 }

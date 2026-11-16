@@ -11,13 +11,14 @@ function niceMax(max: number): number {
   return step * pow;
 }
 
-const format = (v: number, unit: "usd" | "count") =>
-  unit === "usd" ? `$${v.toFixed(2)}` : v.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const COUNT = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
+const DAY = new Intl.DateTimeFormat("id-ID", { timeZone: "UTC", day: "numeric", month: "short" });
 
-const shortDay = (day: string) => {
-  const [, m, d] = day.split("-");
-  return `${Number(d)}/${Number(m)}`;
-};
+const format = (v: number, unit: "usd" | "count") =>
+  unit === "usd" ? USD.format(v) : COUNT.format(v);
+
+const shortDay = (day: string) => DAY.format(new Date(`${day}T00:00:00Z`));
 
 /**
  * Single-series column chart: <=24px columns, 4px rounded tops, square baseline, 2px gaps,
@@ -69,7 +70,7 @@ export function BarChart({ title, data, unit }: { title: string; data: Point[]; 
                   onPointerEnter={() => setActive(i)}
                   onFocus={() => setActive(i)}
                   onBlur={() => setActive(null)}
-                  className="relative flex h-full flex-1 cursor-default items-end justify-center outline-none"
+                  className="relative flex h-full flex-1 cursor-default items-end justify-center rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 >
                   <div
                     className={`w-full max-w-[24px] rounded-t-[4px] bg-accent transition-opacity duration-300 ease-fluid ${
