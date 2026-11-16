@@ -29,7 +29,10 @@ export const CYCLES_PER_DAILY_REPORT: Record<Platform, number> = {
 };
 
 /** Statuses each role works on, in priority order (revisions before new work). */
-export const ROLE_QUEUES: Record<Exclude<AgentRole, "admin" | "rina">, JobStatus[]> = {
+/** Roles that take jobs from the production queue (research roles work from the schedule). */
+export type PipelineRole = Exclude<AgentRole, "admin" | "rina" | "rina_scout">;
+
+export const ROLE_QUEUES: Record<PipelineRole, JobStatus[]> = {
   shion: ["idea_revision", "storyboard_pending", "idea_pending"],
   lukas: ["idea_review", "storyboard_review"],
   linda: ["exec_revision", "executing"],

@@ -7,24 +7,26 @@ type Rollup = Awaited<ReturnType<typeof getRollupData>>;
 type Reports = Awaited<ReturnType<typeof listResearch>>;
 
 const DUE_LABEL = (d: Schedule["due"][number]) =>
-  d.action === "research_session"
-    ? `Sesi riset slot ${d.slot} (${d.day})${d.overdue ? ", terlambat" : ""}`
-    : d.action === "publish_daily"
-      ? `Laporan harian ${d.day}`
-      : `Rollup ${d.level} ${fmtDay(d.period.start)} – ${fmtDay(d.period.end)}`;
+  d.action === "trend_scan"
+    ? `Rina-Scout: pindaian slot ${d.slot} (${fmtDay(d.day)})${d.overdue ? ", terlambat" : ""}`
+    : d.action === "deep_research"
+      ? `Rina: riset mendalam ${fmtDay(d.day)} dari ${d.scans} pindaian${d.overdue ? ", terlambat" : ""}`
+      : d.action === "publish_daily"
+        ? `Rina: laporan harian ${fmtDay(d.day)}`
+        : `Rina: rollup ${d.level} ${fmtDay(d.period.start)} – ${fmtDay(d.period.end)}`;
 
 export function ScheduleToday({ schedule, delay }: { schedule: Schedule; delay?: number }) {
   return (
     <Section
       eyebrow={`Hari ini · ${fmtDay(schedule.today)} · WIB`}
-      title="Jadwal riset Rina"
+      title="Jadwal riset"
       aside={<Badge tone={schedule.due.length ? "warn" : "success"}>{schedule.due.length ? `${schedule.due.length} jatuh tempo` : "semua beres"}</Badge>}
       delay={delay}
     >
       <div className="grid gap-4 md:grid-cols-12">
         {schedule.slots.map((s) => {
           const current = s.slot === schedule.currentSlot;
-          const done = s.models.length > 0;
+          const late = !s.scanned && s.slot < schedule.currentSlot;
           return (
             <Panel key={s.slot} className="md:col-span-3" coreClassName={`flex h-full flex-col justify-between gap-6 p-5 ${current ? "ring-1 ring-accent/40" : ""}`}>
               <div className="flex items-center justify-between">
@@ -37,18 +39,22 @@ export function ScheduleToday({ schedule, delay }: { schedule: Schedule; delay?:
                 <p className="text-sm text-subtle">
                   {String(s.from).padStart(2, "0")}:00 – {String(s.to).padStart(2, "0")}:59
                 </p>
-                <p className="mt-1 text-lg font-medium">{done ? s.models.join(" + ") : "belum ada sesi"}</p>
+                <p className="mt-1 text-lg font-medium">{s.scanned ? "pindaian masuk" : "belum dipindai"}</p>
+                {s.models.length > 0 && <p className="mt-0.5 text-xs text-subtle">riset: {s.models.join(" + ")}</p>}
               </div>
-              <Badge tone={done ? "success" : s.slot < schedule.currentSlot ? "warn" : "neutral"}>
-                {done ? "selesai" : s.slot < schedule.currentSlot ? "terlewat" : "menunggu"}
+              <Badge tone={s.scanned ? "success" : late ? "warn" : "neutral"}>
+                {s.scanned ? "Rina-Scout selesai" : late ? "terlewat" : "menunggu"}
               </Badge>
             </Panel>
           );
         })}
         <Panel className="md:col-span-3" coreClassName="flex h-full flex-col gap-3 p-5">
-          <p className="text-sm text-muted">Yang harus dikerjakan</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted">Riset mendalam</p>
+            <Badge tone={schedule.todayResearched ? "success" : "neutral"}>{schedule.todayResearched ? "selesai" : "belum"}</Badge>
+          </div>
           {schedule.due.length === 0 ? (
-            <p className="text-sm">Tidak ada. Rina sudah sesuai jadwal.</p>
+            <p className="text-sm">Tidak ada yang jatuh tempo. Tim riset sesuai jadwal.</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
               {schedule.due.map((d, i) => (

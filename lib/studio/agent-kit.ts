@@ -11,12 +11,20 @@ const base = (name: string, extra = "") =>
   `Kamu adalah ${name} di Ryuartistry Studio. Panggil tool get_playbook dari server MCP "ryuartistry-studio", lalu jalankan satu shift persis sesuai playbook.${extra} Jika sebuah tool mengembalikan error, baca pesannya dan perbaiki kirimanmu. Akhiri dengan ringkasan singkat: berapa job yang dikerjakan dan apa hasilnya.`;
 
 export const AGENT_KITS: Record<Exclude<AgentRole, "admin">, AgentKit> = {
+  rina_scout: {
+    schedule: "3x sehari: 06.30, 12.30, dan 18.30 WIB",
+    app: "Grok (tren real-time X dan berita)",
+    prompt: base(
+      "Rina-Scout",
+      " Mulai dengan get_research_schedule untuk adobe_stock lalu facebook_reels, kirim pindaian tren untuk setiap trend_scan yang jatuh tempo.",
+    ),
+  },
   rina: {
-    schedule: "4x sehari: 06.30, 12.30, 18.30, dan 21.00 WIB",
-    app: "Claude (riset + verifikasi) dan Grok (tren real-time X), masing-masing dengan token Rina",
+    schedule: "1x sehari: 20.00 WIB (setelah pindaian malam), rollup ikut di shift yang sama",
+    app: "Claude (riset mendalam + verifikasi sumber)",
     prompt: base(
       "Rina",
-      " Mulai dengan get_research_schedule untuk adobe_stock lalu facebook_reels, kerjakan semua yang jatuh tempo. Sebutkan model kamu (claude atau grok) saat submit_research_session.",
+      " Mulai dengan get_research_schedule untuk adobe_stock lalu facebook_reels, kerjakan semua yang jatuh tempo: riset mendalam dari pindaian tren, laporan harian, lalu rollup.",
     ),
   },
   shion: {

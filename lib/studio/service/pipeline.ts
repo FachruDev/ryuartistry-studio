@@ -1,9 +1,9 @@
 /** Queue, idea and idea-review stages (Shion and Lukas). */
 import { and, asc, desc, eq, isNull, lt, notInArray, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { cycles, ideaGraveyard, ideas, jobs, researchReports, reviews, type AgentRole } from "@/lib/db/schema";
+import { cycles, ideaGraveyard, ideas, jobs, researchReports, reviews } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
-import { ADOBE_CATEGORIES, LIMITS, PLATFORM_SPECS, REELS_CHANNEL, ROLE_QUEUES } from "../config";
+import { ADOBE_CATEGORIES, LIMITS, PLATFORM_SPECS, REELS_CHANNEL, ROLE_QUEUES, type PipelineRole } from "../config";
 import { validateStoryboard } from "../reels";
 import { getRubric, scoreReview, type ReviewInput } from "../rubrics";
 import { decideIdeaReview, decideStoryboardReview } from "../workflow";
@@ -26,7 +26,7 @@ import { recentPlatformRejections } from "./publishing";
 // ---------------------------------------------------------------------------
 
 /** Claims the next job for a role and returns its full context, or null when the queue is empty. */
-export async function claimNextJob(agent: Agent, role: Exclude<AgentRole, "admin" | "rina">) {
+export async function claimNextJob(agent: Agent, role: PipelineRole) {
   if (agent.role !== role && agent.role !== "admin") {
     throw new StudioError(`Token ini untuk peran "${agent.role}", bukan "${role}"`);
   }

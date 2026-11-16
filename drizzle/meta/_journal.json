@@ -50,6 +50,13 @@
       "when": 1794815212639,
       "tag": "0006_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794818669729,
+      "tag": "0007_rina_scout",
+      "breakpoints": true
     }
   ]
 }

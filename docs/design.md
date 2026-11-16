@@ -17,7 +17,8 @@ Dua lini produk awal:
 
 | Agen | Peran | Model | Input | Output |
 |---|---|---|---|---|
-| **Rina** | Riset pasar & tren | Claude + Grok | Sumber web, berita, tren X, data performa | Laporan riset harian + rollup mingguan/bulanan/tahunan |
+| **Rina-Scout** | Pemindai tren harian | Grok | Tren X, berita, event | Pindaian tren 3x sehari (bahan riset, bukan hasil) |
+| **Rina** | Riset pasar mendalam | Claude | Pindaian Rina-Scout, sumber web, data performa | Laporan riset harian + rollup mingguan/bulanan/tahunan |
 | **Shion** | Pembuat ide/skenario | ChatGPT | Riset Rina, catatan ide yang dibuang, feedback | Brief ide (gambar) atau naskah + storyboard (reels) |
 | **Lukas** | Reviewer ide | Claude | Brief ide + rubrik ide | Skor, keputusan lolos/revisi, saran perbaikan |
 | **Linda** | Eksekutor | Gambar: Gemini / GPT Image · Reels: Claude | Brief yang disetujui + feedback | Aset final (gambar/video) |
@@ -36,8 +37,8 @@ Prinsip:
 ```
  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐
  │ Claude    │ │ ChatGPT   │ │ Grok      │ │ Gemini/GPT│   ← klien AI (host MCP)
- │ (Rina,    │ │ (Shion)   │ │ (Rina)    │ │ (Linda    │
- │ Lukas,    │ │           │ │           │ │  gambar)  │
+ │ (Rina,    │ │ (Shion)   │ │ (Rina-    │ │ (Linda    │
+ │ Lukas,    │ │           │ │  Scout)   │ │  gambar)  │
  │ Linda     │ │           │ │           │ │           │
  │ reels,    │ │           │ │           │ │           │
  │ Kechlyn)  │ │           │ │           │ │           │
@@ -78,8 +79,8 @@ Pola kerja agen (sama untuk semua peran):
 ## 3. Rina — Riset Pasar
 
 ### 3.1 Jadwal
-- **3 sesi per hari** (pagi, siang, malam), per platform. Frekuensi dapat diatur per platform di konfigurasi; tren Adobe Stock bergerak lebih lambat daripada FB, jadi sesi Adobe dapat dikurangi jika biaya perlu ditekan.
-- Setelah sesi ke-3: **gabung harian** → 1 laporan harian.
+- **Rina-Scout (Grok) memindai 3x per hari** (pagi, siang, malam), per platform: sinyal cepat apa yang sedang naik. Pindaian disimpan terpisah (`trend_scans`) dan tidak pernah menjadi temuan atau laporan, sehingga Grok tidak bisa membuka siklus produksi.
+- **Rina (Claude) riset mendalam 1x per hari** (malam, setelah pindaian terakhir): memverifikasi sinyal, membuang yang tidak layak jual, menambah temuan sendiri, lalu **gabung harian** → 1 laporan harian. Tanpa pindaian, Rina tetap riset sendiri di slot malam.
 - Setiap Minggu malam: **rollup mingguan** dari 7 laporan harian.
 - Setiap akhir bulan: **rollup bulanan** dari laporan mingguan.
 - Setiap akhir tahun: **rollup tahunan** dari laporan bulanan.
@@ -102,7 +103,7 @@ Setiap temuan (`research_findings`):
 | `notes` | alasan singkat |
 
 ### 3.3 Aturan penggabungan
-- **Harian (3 → 1):** buang duplikat; temuan yang muncul di lebih dari satu sesi atau dari lebih dari satu model (Claude & Grok) naik `confidence`-nya; temuan tanpa sumber yang dapat dicek ditandai `unverified` dan tidak boleh jadi prioritas utama.
+- **Harian:** buang duplikat; temuan yang muncul di lebih dari satu sesi naik `confidence`-nya, dan topik riset yang juga terlihat di pindaian Rina-Scout mendapat bonus keyakinan (+1, atau +1,5 bila di 2+ pindaian); temuan tanpa sumber yang dapat dicek ditandai `unverified` dan tidak boleh jadi prioritas utama.
 - **Mingguan:** tren naik/turun per topik (dibandingkan minggu sebelumnya), topik yang konsisten muncul, dan **perbandingan dengan performa nyata** (§9).
 - **Bulanan:** pola musiman dan **daftar persiapan event 1–2 bulan ke depan** (Adobe Stock butuh waktu agar konten musiman terindeks sebelum event).
 - **Tahunan:** kalender musiman untuk tahun berikutnya + pelajaran besar (kategori mana yang paling menghasilkan).
@@ -365,7 +366,8 @@ Syarat sebuah platform boleh publikasi otomatis (usulan):
 | Peran | Tools |
 |---|---|
 | Semua | `get_next_job(role)`, `get_job(id)`, `get_rubric(name)` |
-| Rina | `start_research_session`, `add_findings`, `merge_daily`, `create_rollup(level)`, `get_performance_summary` |
+| Rina-Scout | `get_research_schedule` (hanya `trend_scan`), `submit_trend_scan`, `get_trend_scans` |
+| Rina | `get_research_schedule`, `get_trend_scans`, `submit_research_session`, `get_daily_merge_data`, `get_rollup_data`, `publish_report`, `get_performance_summary` |
 | Shion | `get_research(level)`, `get_idea_graveyard`, `submit_idea`, `submit_storyboard` |
 | Lukas | `submit_idea_review` (skor, gates, feedback), `forward_to_shion` (setelah diagnosis dari Kechlyn) |
 | Linda | `create_asset_upload` (presigned URL S3), `submit_asset`, `get_feedback_history` |

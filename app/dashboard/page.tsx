@@ -14,7 +14,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow="Studio · Ringkasan"
         title="Selamat datang kembali"
-        description="Rina meriset, Shion menulis ide, Lukas menyaring, Linda mengeksekusi, Kechlyn memutuskan. Keputusan akhir ada di kamu."
+        description="Rina-Scout memindai tren, Rina meriset mendalam, Shion menulis ide, Lukas menyaring, Linda mengeksekusi, Kechlyn memutuskan. Keputusan akhir ada di kamu."
       />
       <Suspense fallback={<p className="text-sm text-muted">Memuat data…</p>}>
         <Overview />

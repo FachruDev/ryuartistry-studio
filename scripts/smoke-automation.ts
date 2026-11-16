@@ -20,6 +20,7 @@ import {
   saveAutomationSettings,
   unreadNotificationCount,
 } from "@/lib/studio/service";
+import { assertNoLiveQueue } from "./lib/live-queue-guard";
 
 const base = process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3100";
 const startedAt = new Date();
@@ -147,6 +148,7 @@ async function cleanup(original: Awaited<ReturnType<typeof getAutomationSettings
 }
 
 const original = await getAutomationSettings();
+await assertNoLiveQueue("AUTOMATION SMOKE TEST");
 try {
   await run(original);
 } catch (e) {

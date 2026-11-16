@@ -1,5 +1,5 @@
 /**
- * End-to-end smoke test of Rina's research flow over MCP (Phase 2).
+ * End-to-end smoke test of the research flow over MCP: Rina-Scout trend scans → Rina deep research.
  * Uses a fixed past week (2020-01-06 Mon .. 2020-01-12 Sun) so it never touches real research,
  * and deletes everything it created.
  *
@@ -10,6 +10,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  agents,
   assets,
   cycles,
   jobs,
@@ -19,6 +20,7 @@ import {
   researchSessions,
   transitions,
 } from "@/lib/db/schema";
+import { trendScans } from "@/lib/db/schema-scout";
 import { importPerformance, performanceOverview } from "@/lib/studio/service";
 
 const base = process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3100";
@@ -64,28 +66,66 @@ const finding = (topic: string, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const signal = (topic: string, keywords: string[]) => ({
+  topic,
+  why: "Ramai dibagikan desainer minggu ini",
+  keywords,
+  momentum: 7,
+  sources: [{ url: "https://example.com/x-post", accessedAt: DAY }],
+});
+
 async function run() {
+  // Rina-Scout: scans only, no research or reports, no pipeline jobs.
+  const scout = await connect("rina_scout");
+  const scoutTools = (await scout.listTools()).tools.map((t) => t.name);
+  expect(
+    scoutTools.includes("submit_trend_scan") && scoutTools.includes("get_research_schedule") &&
+      !scoutTools.includes("submit_research_session") && !scoutTools.includes("publish_report") && !scoutTools.includes("get_next_job"),
+    `Rina-Scout tool set wrong: ${scoutTools.join(",")}`,
+  );
+  const scoutSchedule = await call(scout, "get_research_schedule", { platform: "adobe_stock" });
+  expect(scoutSchedule.due.every((d: { action: string }) => d.action === "trend_scan"), JSON.stringify(scoutSchedule.due));
+  const oldScan = await callError(scout, "submit_trend_scan", {
+    platform: "adobe_stock", day: DAY, slot: 1, signals: [signal("a b", ["a", "b"]), signal("c d", ["c", "d"]), signal("e f", ["e", "f"])],
+  });
+  expect(oldScan.includes("hari ini"), oldScan);
+  step(`Rina-Scout: hanya tools pindaian, jadwal hanya trend_scan (${scoutSchedule.due.length}), pindaian tanggal lama ditolak`);
+
+  // Scans for the fixed test day go in directly (the tool only accepts today/yesterday).
+  const [scoutAgent] = await db.select().from(agents).where(eq(agents.role, "rina_scout"));
+  await db.insert(trendScans).values([
+    { platform: "adobe_stock", day: DAY, slot: 1, model: "grok", agentId: scoutAgent.id, signals: [signal("Folded paper texture", ["paper", "texture"]), signal("Retro pixel sunset", ["pixel", "sunset"])] },
+    { platform: "adobe_stock", day: DAY, slot: 2, model: "grok", agentId: scoutAgent.id, signals: [signal("Paper craft overlay", ["paper", "texture", "craft"])] },
+  ]);
+
   const rina = await connect("rina");
   const tools = (await rina.listTools()).tools.map((t) => t.name);
-  expect(tools.includes("get_research_schedule") && !tools.includes("submit_idea"), "Rina tool set wrong");
+  expect(
+    tools.includes("get_research_schedule") && tools.includes("get_trend_scans") && !tools.includes("submit_trend_scan") && !tools.includes("submit_idea"),
+    `Rina tool set wrong: ${tools.join(",")}`,
+  );
   const schedule = await call(rina, "get_research_schedule", { platform: "adobe_stock" });
   expect(schedule.today && schedule.slots.length === 3, "schedule shape");
-  step(`get_research_schedule: hari ini ${schedule.today}, slot ${schedule.currentSlot}, ${schedule.due.length} jatuh tempo`);
+  expect(!schedule.due.some((d: { action: string }) => d.action === "trend_scan"), "Rina should not see scan duties");
+  const scans = await call(rina, "get_trend_scans", { platform: "adobe_stock", day: DAY });
+  expect(scans.length === 2 && scans[0].signals[0].why, "Rina cannot read scans");
+  step(`Rina: membaca 2 pindaian, jadwal tanpa trend_scan (hari ini ${schedule.today}, ${schedule.due.length} jatuh tempo)`);
 
-  await call(rina, "submit_research_session", { platform: "adobe_stock", day: DAY, slot: 1, model: "claude", findings: [finding("Folded paper texture"), finding("Neon grid background", { sources: [], confidence: 9 })] });
-  await call(rina, "submit_research_session", { platform: "adobe_stock", day: DAY, slot: 1, model: "grok", findings: [finding("folded paper texture!", { confidence: 7 })] });
+  await call(rina, "submit_research_session", { platform: "adobe_stock", day: DAY, slot: 1, model: "claude", findings: [finding("Folded paper texture"), finding("Neon grid background", { sources: [], confidence: 9, keywords: ["neon", "grid"] })] });
   await call(rina, "submit_research_session", { platform: "adobe_stock", day: DAY, slot: 3, model: "claude", findings: [finding("Folded paper texture")] });
   const dup = await callError(rina, "submit_research_session", { platform: "adobe_stock", day: DAY, slot: 1, model: "claude", findings: [finding("x topic")] });
   expect(dup.includes("sudah ada"), dup);
-  step("3 sesi tersimpan (Claude + Grok di slot yang sama), sesi ganda ditolak");
+  step("2 sesi riset mendalam tersimpan, sesi ganda ditolak");
 
   const merge = await call(rina, "get_daily_merge_data", { platform: "adobe_stock", day: DAY });
   const paper = merge.topics.find((t: { key: string }) => t.key === "folded paper texture");
   const neon = merge.topics.find((t: { key: string }) => t.key === "neon grid background");
-  expect(paper?.sessions === 3 && paper.models === 2 && merge.missingSlots.join() === "2", JSON.stringify(merge.missingSlots));
-  expect(neon && !neon.verified && neon.adjustedConfidence <= 5, "unverified topic not capped");
+  // 6 avg + 0.5 (2 sessions) + 1.5 (flagged by 2 scans: exact topic + 2 shared keywords)
+  expect(paper?.sessions === 2 && paper.scanSupport === 2 && paper.adjustedConfidence === 8, JSON.stringify(paper));
+  expect(neon && !neon.verified && neon.scanSupport === 0 && neon.adjustedConfidence <= 5, "unverified topic not capped");
+  expect(merge.scans.length === 2 && merge.scanSignalsNotResearched.includes("Retro pixel sunset"), JSON.stringify(merge.scanSignalsNotResearched));
   expect(merge.topics[0].key === "folded paper texture", "ranking wrong");
-  step(`daily merge: topik digabung lintas 3 sesi/2 model (keyakinan ${paper.adjustedConfidence}), topik tanpa sumber dibatasi ${neon.adjustedConfidence}`);
+  step(`daily merge: topik yang juga dipindai Scout naik keyakinannya (${paper.adjustedConfidence}), topik tanpa sumber dibatasi ${neon.adjustedConfidence}, sinyal yang belum diriset dilaporkan`);
 
   const misaligned = await callError(rina, "publish_report", {
     level: "weekly", platform: "adobe_stock", period_start: "2020-01-07", period_end: "2020-01-13",
@@ -98,7 +138,7 @@ async function run() {
 
   const daily = await call(rina, "publish_report", {
     level: "daily", platform: "adobe_stock", period_start: DAY, period_end: DAY,
-    summary: "Tekstur kertas lipat konsisten muncul di tiga sesi dan dua model; persaingan rendah.",
+    summary: "Tekstur kertas lipat terlihat di dua pindaian tren dan terverifikasi di dua sesi riset; persaingan rendah.",
     opportunities: [{ topic: "Folded paper texture", keywords: ["paper", "texture"], rationale: "Permintaan tinggi, persaingan rendah", priority: 9 }],
   });
   openedCycles.push(...daily.openedCycles);
@@ -146,6 +186,7 @@ async function run() {
   step("impor performa: cocok lewat nama file, impor ulang menimpa, Rina melihat keyword yang laku");
 
   await rina.close();
+  await scout.close();
   console.log("\nRESEARCH SMOKE TEST PASSED");
 }
 
@@ -168,6 +209,7 @@ async function cleanup() {
     .delete(researchReports)
     .where(and(eq(researchReports.platform, "adobe_stock"), inArray(researchReports.periodStart, [DAY])));
   await db.delete(researchSessions).where(and(eq(researchSessions.platform, "adobe_stock"), eq(researchSessions.day, DAY)));
+  await db.delete(trendScans).where(and(eq(trendScans.platform, "adobe_stock"), eq(trendScans.day, DAY)));
   console.log("(data uji dibersihkan)");
 }
 

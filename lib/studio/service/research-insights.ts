@@ -24,8 +24,18 @@ import {
   type Period,
   type ReportLevel,
 } from "../research-periods";
-import { aggregateTopics, keywordPerformance, withTrends, type FindingRow } from "../research-rollup";
+import {
+  aggregateTopics,
+  applyScanSupport,
+  keywordPerformance,
+  normalizeTopic,
+  withTrends,
+  type FindingRow,
+  type ScanSignal,
+} from "../research-rollup";
 import type { PerformanceRow } from "../performance-csv";
+import { trendScans } from "@/lib/db/schema-scout";
+import { listTrendScans } from "./scout";
 
 async function findingsIn(platform: Platform, p: Period): Promise<FindingRow[]> {
   const rows = await db
@@ -124,24 +134,35 @@ export async function getDailyMergeData(platform: Platform, day: string) {
     .from(researchSessions)
     .where(and(eq(researchSessions.platform, platform), eq(researchSessions.day, day)))
     .orderBy(asc(researchSessions.slot));
-  const today = await findingsIn(platform, { start: day, end: day });
-  const lastWeek = await findingsIn(platform, { start: addDays(day, -7), end: addDays(day, -1) });
-  const { topics, faded } = withTrends(aggregateTopics(today), aggregateTopics(lastWeek));
-  const slotsDone = new Set(sessions.map((s) => s.slot));
+  const [today, lastWeek, scans] = await Promise.all([
+    findingsIn(platform, { start: day, end: day }),
+    findingsIn(platform, { start: addDays(day, -7), end: addDays(day, -1) }),
+    listTrendScans(platform, day),
+  ]);
+  const trended = withTrends(aggregateTopics(today), aggregateTopics(lastWeek));
+  const signals: ScanSignal[] = scans.flatMap((s) =>
+    s.signals.map((sig) => ({ scanId: s.id, topic: sig.topic, keywords: sig.keywords })),
+  );
+  const topics = applyScanSupport(trended.topics, signals);
+  const researchedKeys = new Set(topics.map((t) => t.key));
 
   return {
     platform,
     day,
     existingReportId: await existingReport(platform, "daily", { start: day, end: day }),
     sessions,
-    missingSlots: SLOT_HOURS.filter((s) => !slotsDone.has(s.slot)).map((s) => s.slot),
+    scans: scans.map((s) => ({ id: s.id, slot: s.slot, model: s.model, signals: s.signals.length })),
     findingCount: today.length,
     unverifiedTopics: topics.filter((t) => !t.verified).length,
-    /** Ranked topics of the day; trend compares with the previous 7 days. */
+    /** Ranked topics of the day (research only); scanSupport = scans that flagged it too. */
     topics,
-    fadedSinceLastWeek: faded,
+    /** Scan signals the deep research did not cover: dismissed, or worth a look tomorrow. */
+    scanSignalsNotResearched: [
+      ...new Set(signals.filter((s) => !researchedKeys.has(normalizeTopic(s.topic))).map((s) => s.topic)),
+    ].slice(0, 20),
+    fadedSinceLastWeek: trended.faded,
     guidance:
-      "Pilih peluang dari topics (urut opportunityScore). Turunkan prioritas topik unverified. Terbitkan dengan publish_report level daily; opportunities diurutkan untuk Shion.",
+      "Pilih peluang dari topics (urut opportunityScore; topik yang juga terlihat di pindaian tren mendapat bonus keyakinan). Turunkan prioritas topik unverified. Terbitkan dengan publish_report level daily; opportunities diurutkan untuk Shion.",
   };
 }
 
@@ -189,35 +210,58 @@ export async function getRollupData(level: Exclude<ReportLevel, "daily">, platfo
 // ---------------------------------------------------------------------------
 
 export type DueAction =
-  | { action: "research_session"; day: string; slot: number; overdue: boolean }
+  /** Rina-Scout: a quick trend scan for this slot. */
+  | { action: "trend_scan"; day: string; slot: number; overdue: boolean }
+  /** Rina: deep research built on the day's scans (submit_research_session with this slot). */
+  | { action: "deep_research"; day: string; slot: number; scans: number; overdue: boolean }
   | { action: "publish_daily"; day: string }
   | { action: "publish_rollup"; level: Exclude<ReportLevel, "daily">; day: string; period: Period };
 
-/** What Rina should do now for a platform, oldest first. */
-export async function getResearchSchedule(platform: Platform, now = new Date()) {
+export type ScheduleRole = "rina" | "rina_scout";
+const SCOUT_ACTIONS = new Set<DueAction["action"]>(["trend_scan"]);
+
+/**
+ * What the research team should do now for a platform, oldest first. Rina-Scout scans each
+ * slot; Rina does one deep research per day once a scan exists (or in the evening without
+ * one), then publishes the daily report. `role` narrows the list to that agent's work.
+ */
+export async function getResearchSchedule(platform: Platform, now = new Date(), role?: ScheduleRole) {
   const today = studioToday(now);
   const slot = currentSlot(now);
   const yesterday = addDays(today, -1);
 
-  const sessions = await db
-    .select({ day: researchSessions.day, slot: researchSessions.slot, model: researchSessions.model })
-    .from(researchSessions)
-    .where(and(eq(researchSessions.platform, platform), between(researchSessions.day, yesterday, today)));
+  const [sessions, scans] = await Promise.all([
+    db
+      .select({ day: researchSessions.day, slot: researchSessions.slot, model: researchSessions.model })
+      .from(researchSessions)
+      .where(and(eq(researchSessions.platform, platform), between(researchSessions.day, yesterday, today))),
+    db
+      .select({ day: trendScans.day, slot: trendScans.slot, model: trendScans.model })
+      .from(trendScans)
+      .where(and(eq(trendScans.platform, platform), between(trendScans.day, yesterday, today))),
+  ]);
   const due: DueAction[] = [];
+  const researched = (day: string) => sessions.some((s) => s.day === day);
+  const scansOn = (day: string) => scans.filter((s) => s.day === day).length;
 
-  // Yesterday's daily report, if research happened but nobody merged it.
-  const hadYesterday = sessions.some((s) => s.day === yesterday);
-  if (hadYesterday && !(await existingReport(platform, "daily", periodOf("daily", yesterday)))) {
+  // Yesterday: scans nobody researched, or research nobody merged.
+  if (!researched(yesterday) && scansOn(yesterday)) {
+    due.push({ action: "deep_research", day: yesterday, slot: 3, scans: scansOn(yesterday), overdue: true });
+  }
+  if (researched(yesterday) && !(await existingReport(platform, "daily", periodOf("daily", yesterday)))) {
     due.push({ action: "publish_daily", day: yesterday });
   }
 
   for (const s of SLOT_HOURS.filter((x) => x.slot <= slot)) {
-    if (!sessions.some((x) => x.day === today && x.slot === s.slot)) {
-      due.push({ action: "research_session", day: today, slot: s.slot, overdue: s.slot < slot });
+    if (!scans.some((x) => x.day === today && x.slot === s.slot)) {
+      due.push({ action: "trend_scan", day: today, slot: s.slot, overdue: s.slot < slot });
     }
   }
+  if (!researched(today) && (scansOn(today) > 0 || slot === 3)) {
+    due.push({ action: "deep_research", day: today, slot, scans: scansOn(today), overdue: false });
+  }
   const todayDaily = await existingReport(platform, "daily", periodOf("daily", today));
-  if (!todayDaily && sessions.some((x) => x.day === today && x.slot === 3)) {
+  if (!todayDaily && researched(today)) {
     due.push({ action: "publish_daily", day: today });
   }
 
@@ -240,10 +284,13 @@ export async function getResearchSchedule(platform: Platform, now = new Date()) 
     currentSlot: slot,
     slots: SLOT_HOURS.map((s) => ({
       ...s,
+      scanned: scans.some((x) => x.day === today && x.slot === s.slot),
       models: sessions.filter((x) => x.day === today && x.slot === s.slot).map((x) => x.model),
     })),
+    todayScans: scansOn(today),
+    todayResearched: researched(today),
     todayDailyReportId: todayDaily,
-    due,
+    due: role === "rina_scout" ? due.filter((d) => SCOUT_ACTIONS.has(d.action)) : role === "rina" ? due.filter((d) => !SCOUT_ACTIONS.has(d.action)) : due,
   };
 }
 

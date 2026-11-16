@@ -1,8 +1,9 @@
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { studioToday } from "@/lib/studio/research-periods";
-import { getResearchSchedule, getRollupData, listResearch } from "@/lib/studio/service";
+import { getResearchSchedule, getRollupData, listResearch, listTrendScans } from "@/lib/studio/service";
 import { LatestDaily, ReportHistory, ScheduleToday, WeekTopics } from "../_components/research";
+import { TodayScans } from "../_components/research-scans";
 import { PageHeader, PlatformTabs, parsePlatform, type PlatformKey } from "../_components/ui";
 
 export const metadata = { title: "Riset · Ryuartistry Studio" };
@@ -11,9 +12,9 @@ export default function ResearchPage({ searchParams }: PageProps<"/dashboard/res
   return (
     <>
       <PageHeader
-        eyebrow="Rina · Riset pasar"
+        eyebrow="Rina-Scout + Rina · Riset pasar"
         title="Riset pasar"
-        description="Tiga sesi sehari digabung menjadi laporan harian, lalu dirangkum mingguan, bulanan, dan tahunan dari data terstruktur, bukan ringkasan dari ringkasan."
+        description="Rina-Scout (Grok) memindai tren tiga kali sehari, Rina (Claude) memverifikasinya lewat riset mendalam. Hanya riset Rina yang menjadi laporan harian, lalu dirangkum mingguan, bulanan, dan tahunan dari data terstruktur."
       />
       <Suspense fallback={<p className="text-sm text-muted">Memuat riset…</p>}>
         <ResearchData searchParams={searchParams} />
@@ -25,8 +26,9 @@ export default function ResearchPage({ searchParams }: PageProps<"/dashboard/res
 async function ResearchData({ searchParams }: { searchParams: PageProps<"/dashboard/research">["searchParams"] }) {
   await connection();
   const platform: PlatformKey = parsePlatform((await searchParams).platform);
-  const [schedule, week, daily, weekly, monthly, yearly] = await Promise.all([
+  const [schedule, scans, week, daily, weekly, monthly, yearly] = await Promise.all([
     getResearchSchedule(platform),
+    listTrendScans(platform, studioToday()),
     getRollupData("weekly", platform, studioToday()),
     listResearch({ platform, level: "daily", limit: 1 }),
     listResearch({ platform, level: "weekly", limit: 4 }),
@@ -41,7 +43,8 @@ async function ResearchData({ searchParams }: { searchParams: PageProps<"/dashbo
         <PlatformTabs base="/dashboard/research" current={platform} />
       </div>
       <ScheduleToday schedule={schedule} delay={80} />
-      <LatestDaily report={daily[0]} delay={140} />
+      <TodayScans scans={scans} delay={120} />
+      <LatestDaily report={daily[0]} delay={160} />
       <WeekTopics rollup={week} delay={200} />
       <ReportHistory reports={history} delay={260} />
     </div>

@@ -17,6 +17,7 @@ import { assets, cycles, ideaGraveyard, ideas, jobs, performance, publications, 
 import { operatorCookie } from "./lib/operator-cookie";
 import { ASSET_BUCKET } from "@/lib/storage";
 import { decidePublication, importPerformance, markReelPosted, performanceOverview, recordReelRestriction } from "@/lib/studio/service";
+import { assertNoLiveQueue } from "./lib/live-queue-guard";
 
 const base = process.argv.find((a) => a.startsWith("http")) ?? "http://localhost:3100";
 const cyclesMade: string[] = [];
@@ -203,6 +204,7 @@ async function cleanup() {
 }
 
 const dir = mkdtempSync(join(tmpdir(), "smoke-reels-"));
+await assertNoLiveQueue("REELS SMOKE TEST");
 try {
   await run(dir);
 } catch (e) {

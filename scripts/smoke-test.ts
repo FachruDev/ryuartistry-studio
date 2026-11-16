@@ -16,6 +16,7 @@ import { assets, cycles, ideaGraveyard, ideas, jobs, publications, reviews, tran
 import { ASSET_BUCKET } from "@/lib/storage";
 import { operatorCookie } from "./lib/operator-cookie";
 import { calibrationStats, decidePublication, markSubmitted, recordPlatformResult } from "@/lib/studio/service";
+import { assertNoLiveQueue } from "./lib/live-queue-guard";
 
 const args = process.argv.slice(2);
 const cleanupIdx = args.indexOf("--cleanup");
@@ -202,6 +203,7 @@ async function cleanup() {
   console.log("(data uji dibersihkan)");
 }
 
+if (cleanupIdx < 0) await assertNoLiveQueue("SMOKE TEST");
 try {
   if (cleanupIdx < 0) await run();
 } catch (e) {

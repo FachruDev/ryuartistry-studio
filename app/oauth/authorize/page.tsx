@@ -17,7 +17,8 @@ import { decideAuthorization } from "./actions";
 export const metadata: Metadata = { title: "Izinkan akses · Ryuartistry Studio" };
 
 const ROLE_HINT: Record<string, string> = {
-  rina: "Riset pasar: menyimpan sesi riset dan laporan",
+  rina_scout: "Pindaian tren harian (mis. Grok): hanya mengirim pindaian, tidak menerbitkan laporan",
+  rina: "Riset mendalam (mis. Claude): sesi riset, laporan harian, dan rollup",
   shion: "Ide & storyboard",
   lukas: "Review ide dan storyboard",
   linda: "Eksekusi: upload gambar dan reels",
