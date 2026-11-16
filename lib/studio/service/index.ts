@@ -10,3 +10,4 @@ export * from "./research";
 export * from "./research-insights";
 export * from "./reels-publishing";
 export * from "./automation";
+export * from "./scout";

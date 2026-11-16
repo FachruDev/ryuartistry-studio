@@ -5,7 +5,8 @@ import { LoginForm } from "./login-form";
 export const metadata: Metadata = { title: "Masuk · Ryuartistry Studio" };
 
 const TEAM = [
-  { name: "Rina", role: "Riset pasar" },
+  { name: "Rina-Scout", role: "Pindai tren" },
+  { name: "Rina", role: "Riset mendalam" },
   { name: "Shion", role: "Ide & skenario" },
   { name: "Lukas", role: "Penyaring ide" },
   { name: "Linda", role: "Eksekusi" },

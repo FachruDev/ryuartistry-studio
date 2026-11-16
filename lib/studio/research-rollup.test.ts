@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { addDays, currentSlot, isExactPeriod, periodOf, previousPeriod, studioToday } from "./research-periods";
-import { aggregateTopics, keywordPerformance, normalizeTopic, withTrends, type FindingRow } from "./research-rollup";
+import { aggregateTopics, applyScanSupport, keywordPerformance, normalizeTopic, withTrends, type FindingRow } from "./research-rollup";
 
 const f = (over: Partial<FindingRow>): FindingRow => ({
   topic: "Paper texture",
@@ -105,4 +105,30 @@ test("keywordPerformance sums sales per keyword and counts refusals", () => {
     { keywords: ["Paper"], status: "platform_rejected", downloads: 0, revenueUsd: 0 },
   ]);
   expect(perf[0]).toEqual({ keyword: "paper", published: 1, refused: 1, downloads: 3, revenueUsd: 1.2 });
+});
+
+describe("applyScanSupport", () => {
+  test("researched topics flagged by the scout gain confidence; scans alone add nothing", () => {
+    const topics = aggregateTopics([
+      f({ topic: "Folded paper texture", keywords: ["paper", "texture", "folded"] }),
+      f({ topic: "Neon grid", keywords: ["neon", "grid"] }),
+    ]);
+    const out = applyScanSupport(topics, [
+      { scanId: "s1", topic: "folded paper texture", keywords: [] },
+      { scanId: "s2", topic: "Kertas lipat tren", keywords: ["Paper", "folded"] },
+      { scanId: "s2", topic: "AI art", keywords: ["ai"] },
+    ]);
+    const paper = out.find((t) => t.key === "folded paper texture")!;
+    const neon = out.find((t) => t.key === "neon grid")!;
+    expect(paper.scanSupport).toBe(2);
+    expect(paper.adjustedConfidence).toBe(7.5); // 6 + 1 + 0.5
+    expect(neon.scanSupport).toBe(0);
+    expect(neon.adjustedConfidence).toBe(6);
+    expect(out.map((t) => t.key)).not.toContain("ai art");
+  });
+
+  test("unverified research stays capped even with scan support", () => {
+    const [t] = applyScanSupport(aggregateTopics([f({ verified: false, confidence: 4 })]), [{ scanId: "s1", topic: "Paper texture", keywords: [] }]);
+    expect(t.adjustedConfidence).toBe(5);
+  });
 });

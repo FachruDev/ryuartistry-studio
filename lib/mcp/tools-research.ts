@@ -1,4 +1,4 @@
-/** Rina's MCP tools: schedule, sessions, daily merge, rollups, performance. */
+/** Rina's MCP tools: schedule, deep-research sessions, daily merge, rollups, performance. */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { parsePerformanceCsv } from "@/lib/studio/performance-csv";
@@ -22,22 +22,22 @@ export function registerResearchTools(server: McpServer, agent: studio.Agent) {
     "get_research_schedule",
     {
       description:
-        "Apa yang harus dikerjakan sekarang (zona waktu Asia/Jakarta): slot riset yang belum diisi, laporan harian yang belum diterbitkan, dan rollup mingguan/bulanan/tahunan yang jatuh tempo. Panggil ini di awal setiap shift.",
+        "Apa yang harus dikerjakan sekarang (zona waktu Asia/Jakarta): riset mendalam yang jatuh tempo (berdasarkan pindaian tren hari itu), laporan harian yang belum diterbitkan, dan rollup mingguan/bulanan/tahunan. Panggil ini di awal setiap shift.",
       inputSchema: { platform: platformSchema },
     },
-    run(async ({ platform }: { platform: PlatformArg }) => studio.getResearchSchedule(platform)),
+    run(async ({ platform }: { platform: PlatformArg }) => studio.getResearchSchedule(platform, new Date(), agent.role === "rina" ? "rina" : undefined)),
   );
 
   server.registerTool(
     "submit_research_session",
     {
       description:
-        "Simpan satu sesi riset (slot 1=pagi, 2=siang, 3=malam, waktu Jakarta) beserta temuan terstruktur. Satu sesi per model per slot; Claude dan Grok boleh mengisi slot yang sama. Temuan tanpa sumber ditandai belum terverifikasi.",
+        "Simpan hasil riset mendalam (pakai slot dari item deep_research di jadwal) beserta temuan terstruktur. Satu sesi per model per slot. Temuan tanpa sumber ditandai belum terverifikasi. Ini hasil riset resmi; pindaian tren hanya bahan.",
       inputSchema: {
         platform: platformSchema,
         day: dateSchema.default(() => studioToday()),
         slot: z.number().int().min(1).max(3),
-        model: z.string().describe("Model yang melakukan riset, mis. claude / grok"),
+        model: z.string().describe("Model yang melakukan riset, mis. claude"),
         notes: z.string().optional(),
         findings: z
           .array(
@@ -71,7 +71,7 @@ export function registerResearchTools(server: McpServer, agent: studio.Agent) {
     "get_daily_merge_data",
     {
       description:
-        "Data untuk laporan harian: sesi yang sudah masuk, slot yang belum, dan topik hari itu yang sudah digabung dan diberi skor peluang (permintaan tinggi, persaingan rendah, keyakinan naik bila muncul di beberapa sesi/model). Tren dibandingkan dengan 7 hari sebelumnya.",
+        "Data untuk laporan harian: sesi riset dan pindaian tren hari itu, topik yang sudah digabung dan diberi skor peluang (permintaan tinggi, persaingan rendah; keyakinan naik bila juga terlihat di pindaian tren), dan sinyal pindaian yang belum diriset. Tren dibandingkan dengan 7 hari sebelumnya.",
       inputSchema: { platform: platformSchema, day: dateSchema.default(() => studioToday()) },
     },
     run(async (a: { platform: PlatformArg; day: string }) => studio.getDailyMergeData(a.platform, a.day)),

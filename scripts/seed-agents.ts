@@ -15,7 +15,8 @@ import { agents, type AgentRole } from "@/lib/db/schema";
 import { hashToken } from "@/lib/studio/service";
 
 const TEAM: { name: string; role: AgentRole; model: string }[] = [
-  { name: "Rina", role: "rina", model: "claude + grok" },
+  { name: "Rina-Scout", role: "rina_scout", model: "grok" },
+  { name: "Rina", role: "rina", model: "claude" },
   { name: "Shion", role: "shion", model: "chatgpt" },
   { name: "Lukas", role: "lukas", model: "claude" },
   { name: "Linda", role: "linda", model: "gemini/gpt-image (gambar), claude (reels)" },
@@ -30,7 +31,12 @@ const lines: string[] = [];
 for (const member of TEAM) {
   const [existing] = await db.select().from(agents).where(eq(agents.role, member.role)).limit(1);
   if (existing && !rotate) {
-    console.log(`- ${member.name}: sudah ada, dilewati (pakai --rotate untuk token baru)`);
+    if (existing.model !== member.model || existing.name !== member.name) {
+      await db.update(agents).set({ name: member.name, model: member.model }).where(eq(agents.id, existing.id));
+      console.log(`- ${member.name}: sudah ada, nama/model diperbarui (${member.model})`);
+    } else {
+      console.log(`- ${member.name}: sudah ada, dilewati (pakai --rotate untuk token baru)`);
+    }
     continue;
   }
   const token = `rs_${member.role}_${randomBytes(24).toString("base64url")}`;

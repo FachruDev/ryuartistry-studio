@@ -20,6 +20,8 @@ import {
 
 export const agentRole = pgEnum("agent_role", [
   "rina",
+  /** Trend scout (Grok): submits trend scans only; Rina (Claude) turns them into research. */
+  "rina_scout",
   "shion",
   "lukas",
   "linda",

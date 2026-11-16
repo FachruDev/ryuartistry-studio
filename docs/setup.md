@@ -5,7 +5,7 @@
 | Path | Isi |
 |---|---|
 | `app/api/mcp/route.ts` | Endpoint MCP (Streamable HTTP, stateless). Token Bearer menentukan peran dan tools yang terlihat |
-| `lib/mcp/server.ts`, `lib/mcp/tools-research.ts`, `lib/mcp/helpers.ts` | Daftar tools per peran (riset Rina dipisah) |
+| `lib/mcp/server.ts`, `lib/mcp/tools-research.ts`, `lib/mcp/tools-scout.ts`, `lib/mcp/helpers.ts` | Daftar tools per peran (riset Rina dan pindaian Rina-Scout dipisah) |
 | `lib/studio/playbooks.ts` | Instruksi shift per agen (tool `get_playbook`) |
 | `lib/studio/workflow.ts` | Aturan alur murni (batas revisi, routing, fallback siklus) + test |
 | `lib/studio/rubrics.ts`, `rubrics/*.json` | Rubrik penilaian dan perhitungan skor di server + test |
@@ -15,7 +15,7 @@
 | `lib/studio/research-periods.ts` | Kalender studio (WIB): slot riset, periode harian/mingguan (Senin-Minggu)/bulanan/tahunan + test |
 | `lib/studio/research-rollup.ts` | Agregasi topik, skor peluang, tren, performa per keyword + test |
 | `lib/studio/performance-csv.ts` | Parser CSV penjualan (kolom fleksibel) + test |
-| `lib/studio/service/` | Semua operasi job: `core` (helper), `pipeline` (Shion/Lukas), `execution` (Linda/Kechlyn), `publishing` (metadata, approval, kit Adobe, kalibrasi), `research` (sesi & laporan Rina, dashboard), `research-insights` (daily merge, rollup, jadwal, impor performa) |
+| `lib/studio/service/` | Semua operasi job: `core` (helper), `pipeline` (Shion/Lukas), `execution` (Linda/Kechlyn), `publishing` (metadata, approval, kit Adobe, kalibrasi), `research` (sesi & laporan Rina, dashboard), `research-insights` (daily merge, rollup, jadwal, impor performa), `scout` (pindaian tren Rina-Scout) |
 | `lib/db/schema.ts`, `drizzle/` | Skema Postgres dan migrasi |
 | `lib/storage.ts` | S3 (bucket privat, URL presigned) |
 | `app/dashboard` | Panel admin (sidebar + topbar, tema terang/gelap): Ringkasan, Adobe Stock, Reels, Riset, Performa |
@@ -31,7 +31,7 @@
 | `app/dashboard/kit/adobe-csv` | Unduhan CSV metadata untuk Adobe Stock |
 | `scripts/seed-agents.ts` | Membuat agen dan token |
 | `scripts/smoke-test.ts` | Uji end-to-end alur gambar Adobe lewat MCP |
-| `scripts/smoke-research.ts` | Uji end-to-end riset Rina, rollup, dan impor performa lewat MCP |
+| `scripts/smoke-research.ts` | Uji end-to-end pindaian Rina-Scout → riset Rina, rollup, dan impor performa lewat MCP |
 
 ## Environment
 
@@ -72,7 +72,9 @@ bun --env-file=.env --env-file=.env.local --env-file=.env.agents.local scripts/s
 bun --env-file=.env --env-file=.env.local --env-file=.env.agents.local scripts/smoke-reels.ts http://localhost:3000
 ```
 
-`smoke-test` = alur gambar Adobe, `smoke-research` = riset Rina, `smoke-reels` = alur reels dengan video MP4 asli buatan ffmpeg plus login dashboard.
+`smoke-test` = alur gambar Adobe, `smoke-research` = pindaian + riset, `smoke-reels` = alur reels dengan video MP4 asli buatan ffmpeg plus login dashboard.
+
+**Penting:** `smoke-test`, `smoke-reels`, dan `smoke-automation` mengambil job lewat `get_next_job`, yang selalu mengambil job tertua di database. Ketiganya menolak jalan bila ada job nyata di antrian. Setelah studio berjalan sungguhan, jalankan uji ini di branch Neon terpisah (`DATABASE_URL` branch uji), bukan di database production.
 
 `KEEP=1` membiarkan data uji agar bisa dilihat di dashboard; hapus dengan `--cleanup <cycleId,...>` yang dicetak di akhir.
 
@@ -87,7 +89,7 @@ Tempel URL MCP sebagai konektor custom; biarkan pengaturan OAuth kosong. Alurnya
 1. Server menjawab `401` dengan `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/api/mcp"`.
 2. Aplikasi membaca metadata resource (RFC 9728) dan authorization server (`/.well-known/oauth-authorization-server`, RFC 8414).
 3. Aplikasi mendaftar sendiri lewat `/oauth/register` (Dynamic Client Registration, RFC 7591) atau memakai Client ID Metadata Document (client_id berupa URL HTTPS).
-4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu **memilih agen** yang diwakili aplikasi itu (mis. Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
+4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu **memilih agen** yang diwakili aplikasi itu (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
 5. Token: PKCE S256 wajib; access token 1 jam, refresh token 30 hari dan **berotasi**; token terikat ke URL MCP ini (RFC 8707). Refresh token yang dipakai ulang atau kode yang dipakai dua kali mencabut seluruh koneksi itu.
 6. Cabut kapan saja: halaman **Agen** → kit koneksi agen → tombol **Cabut** (atau aplikasi memanggil `/oauth/revoke`).
 
@@ -130,15 +132,25 @@ Prompt terjadwal untuk setiap agen cukup: **"Panggil get_playbook lalu jalankan 
 
 Panel **Kalibrasi** membandingkan skor Kechlyn dengan skormu dan melacak syarat mode otomatis (`AUTO_MODE_CRITERIA`: ≥ 50 dinilai, ≥ 90% disetujui, ≥ 80% diterima Adobe).
 
-## Riset Rina (Fase 2)
+## Riset: Rina-Scout + Rina
 
-Semua tanggal memakai zona waktu studio **Asia/Jakarta (WIB)**. Slot riset: 1 pagi (00–11), 2 siang (12–17), 3 malam (18–23). Minggu = Senin–Minggu.
+Semua tanggal memakai zona waktu studio **Asia/Jakarta (WIB)**. Slot: 1 pagi (00–11), 2 siang (12–17), 3 malam (18–23). Minggu = Senin–Minggu.
 
-1. **Setiap shift** Rina memanggil `get_research_schedule`. Server mengembalikan daftar `due`: slot yang belum diisi, laporan harian yang belum terbit (termasuk kemarin), dan rollup yang jatuh tempo (periode sebelumnya yang belum dirangkum, atau periode berjalan pada hari terakhirnya).
-2. **Sesi riset** (`submit_research_session`): satu sesi per model per slot, jadi Claude dan Grok bisa mengisi slot yang sama. Sesi ganda ditolak.
+Riset dikerjakan dua agen dengan token/koneksi sendiri:
+
+| Agen | Aplikasi | Jadwal | Tugas |
+|---|---|---|---|
+| **Rina-Scout** | Grok | 06.30, 12.30, 18.30 WIB | `submit_trend_scan`: 3–15 sinyal yang sedang naik per slot (topik, alasan, keyword, momentum, sumber). Tidak bisa menyimpan riset atau menerbitkan laporan. |
+| **Rina** | Claude | 20.00 WIB | Riset mendalam dari pindaian hari itu, laporan harian, dan rollup. Hanya hasil Rina yang menjadi laporan resmi. |
+
+1. **Setiap shift** kedua agen memanggil `get_research_schedule`; server hanya mengembalikan tugas milik peran itu. Scout: `trend_scan` per slot yang belum dipindai. Rina: `deep_research` (setelah ada pindaian hari itu, atau mulai slot malam tanpa pindaian), `publish_daily`, dan rollup. Riset atau laporan kemarin yang tertinggal ikut muncul.
+2. **Riset mendalam** (`submit_research_session`): Rina membaca `get_trend_scans`, memverifikasi permintaan dan persaingan tiap sinyal, membuang yang tidak layak jual, dan menambah temuannya sendiri. Satu sesi per model per slot; sesi ganda ditolak. Pindaian hanya boleh untuk hari ini atau kemarin.
 3. **Laporan harian**: `get_daily_merge_data` menggabungkan topik lintas sesi/model secara deterministik dan memberi skor:
    - `opportunityScore = permintaan × (11 − persaingan) / 10 × keyakinan / 10` (0–10);
-   - keyakinan naik +0,5 per sesi tambahan dan +1 per model tambahan; topik tanpa sumber dibatasi maksimal 5;
+   - keyakinan naik +0,5 per sesi tambahan dan +1 per model tambahan;
+   - topik riset yang juga terlihat di pindaian (nama topik sama, atau ≥ 2 keyword sama) mendapat +1 keyakinan, +1,5 bila di 2+ pindaian (`scanSupport`); pindaian sendiri tidak pernah menjadi topik;
+   - topik tanpa sumber dibatasi maksimal 5;
+   - `scanSignalsNotResearched` mencantumkan sinyal pindaian yang tidak diriset;
    - tren dibandingkan dengan 7 hari sebelumnya.
    Rina memilih peluang dan menerbitkan dengan `publish_report` (wajib berisi `opportunities`). Laporan harian membuka 5 siklus produksi.
 4. **Rollup**: `get_rollup_data` menghitung topik dari data mentah periode itu (bukan dari ringkasan), tren naik/turun/baru/hilang dibanding periode sebelumnya, dan performa per keyword. Server memvalidasi periode harus pas kalender, hanya satu laporan per periode, dan `child_report_ids` harus laporan level di bawahnya di dalam periode.

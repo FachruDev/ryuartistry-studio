@@ -6,6 +6,7 @@ import { RUBRICS, getRubric } from "@/lib/studio/rubrics";
 import * as studio from "@/lib/studio/service";
 import { levelSchema, platformSchema, run } from "./helpers";
 import { registerResearchTools } from "./tools-research";
+import { registerScoutTools } from "./tools-scout";
 
 type Agent = studio.Agent;
 type Role = AgentRole;
@@ -21,7 +22,8 @@ const reviewShape = {
 };
 
 const ROLE_INTRO: Record<Role, string> = {
-  rina: "Kamu Rina, agen riset pasar. Mulai setiap shift dengan get_research_schedule dan kerjakan semua yang jatuh tempo: sesi riset, laporan harian (membuka siklus produksi), dan rollup.",
+  rina: "Kamu Rina, agen riset pasar (riset mendalam). Mulai setiap shift dengan get_research_schedule dan kerjakan semua yang jatuh tempo: riset mendalam berdasarkan pindaian tren Rina-Scout, laporan harian (membuka siklus produksi), dan rollup.",
+  rina_scout: "Kamu Rina-Scout, pemindai tren harian. Mulai setiap shift dengan get_research_schedule lalu kirim pindaian tren untuk slot yang jatuh tempo dengan submit_trend_scan. Kamu tidak menerbitkan laporan.",
   shion: "Kamu Shion, pembuat ide/skenario. Ambil job dengan get_next_job, baca riset, review sebelumnya, dan idea_graveyard, lalu kirim ide atau storyboard.",
   lukas: "Kamu Lukas, reviewer ide. Ambil job, nilai dengan rubrik yang disertakan, dan selalu beri masukan konkret.",
   linda: "Kamu Linda, eksekutor. Ambil job, baca brief dan semua feedback, buat aset, upload lewat create_asset_upload, lalu submit_asset.",
@@ -48,7 +50,7 @@ export function createStudioServer(agent: Agent): McpServer {
     {
       description: "Instruksi kerja satu shift untuk peranmu. Panggil ini di awal setiap shift.",
       inputSchema: {
-        role: z.enum(["rina", "shion", "lukas", "linda", "kechlyn", "admin"]).optional().describe("Default: peran token ini"),
+        role: z.enum(["rina", "rina_scout", "shion", "lukas", "linda", "kechlyn", "admin"]).optional().describe("Default: peran token ini"),
       },
     },
     async ({ role }: { role?: Role }) => ({
@@ -89,7 +91,7 @@ export function createStudioServer(agent: Agent): McpServer {
     }),
   );
 
-  if (agent.role !== "rina") {
+  if (agent.role !== "rina" && agent.role !== "rina_scout") {
     const roles = agent.role === "admin" ? ["shion", "lukas", "linda", "kechlyn"] : [agent.role];
     server.registerTool(
       "get_next_job",
@@ -298,8 +300,9 @@ export function createStudioServer(agent: Agent): McpServer {
     );
   }
 
-  // --- Rina -----------------------------------------------------------------
+  // --- Rina & Rina-Scout------------------------------------------------------------
   if (can("rina")) registerResearchTools(server, agent);
+  if (can("rina", "rina_scout")) registerScoutTools(server, agent);
 
   // --- Admin ----------------------------------------------------------------
   if (agent.role === "admin") {

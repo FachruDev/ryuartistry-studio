@@ -1,4 +1,4 @@
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createWriteStream } from "node:fs";
 import type { Readable } from "node:stream";
@@ -86,4 +86,8 @@ export async function headObject(key: string): Promise<{ bytes: number; contentT
     if (status === 404 || status === 403) return null;
     throw e;
   }
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  await s3().send(new DeleteObjectCommand({ Bucket: ASSET_BUCKET, Key: key }));
 }

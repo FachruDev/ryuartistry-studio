@@ -87,7 +87,7 @@ export async function agentsOverview(now = new Date()) {
     health: agentHealth(a.lastSeenAt, now, s.agentQuietHours),
     callsToday: calls.find((c) => c.agentId === a.id)?.n ?? 0,
     lastTool: lastTools.find((t) => t.agentId === a.id) ?? null,
-    queue: a.role === "rina" || a.role === "admin" ? null : queued(a.role),
+    queue: a.role === "rina" || a.role === "rina_scout" || a.role === "admin" ? null : queued(a.role),
   }));
 }
 
@@ -200,15 +200,24 @@ export async function runAutomationTick(now = new Date()) {
   }
 
   for (const p of PLATFORMS) {
-    // 3. Research slots that were missed.
+    // 3. Scans and research that were missed.
     const schedule = await getResearchSchedule(p, now);
     for (const d of schedule.due) {
-      if (d.action === "research_session" && d.overdue) {
+      if (d.action === "trend_scan" && d.overdue) {
         await push({
-          key: `research:${p}:${d.day}:${d.slot}`,
+          key: `scan:${p}:${d.day}:${d.slot}`,
+          severity: "info",
+          title: `Pindaian tren ${PLATFORM_NAME[p]} slot ${d.slot} terlewat`,
+          body: `Rina-Scout belum mengirim pindaian slot ${d.slot} untuk ${d.day}. Rina tetap bisa riset tanpa pindaian.`,
+          href: `/dashboard/research?platform=${p}`,
+        });
+      }
+      if (d.action === "deep_research" && d.overdue) {
+        await push({
+          key: `research:${p}:${d.day}`,
           severity: "warn",
-          title: `Riset ${PLATFORM_NAME[p]} slot ${d.slot} terlewat`,
-          body: `Rina belum menyimpan sesi slot ${d.slot} untuk ${d.day}.`,
+          title: `Riset mendalam ${PLATFORM_NAME[p]} ${d.day} terlewat`,
+          body: `Ada ${d.scans} pindaian tren yang belum diriset Rina, jadi laporan harian dan siklus produksi tertunda.`,
           href: `/dashboard/research?platform=${p}`,
         });
       }

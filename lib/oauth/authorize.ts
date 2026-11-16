@@ -34,7 +34,10 @@ export async function checkAuthorizeRequest(p: AuthorizeParams, origin: string):
   try {
     client = await resolveClient(p.client_id);
   } catch (e) {
-    return { kind: "fatal", message: e instanceof OAuthError ? `Aplikasi tidak dikenal: ${e.message}.` : "Aplikasi tidak dikenal." };
+    return {
+      kind: "fatal",
+      message: e instanceof OAuthError ? `Data pendaftaran aplikasi tidak bisa dipakai (${e.message}).` : "Aplikasi tidak dikenal.",
+    };
   }
   // Exact match only: an unregistered redirect could send the code to an attacker.
   if (!p.redirect_uri || !client.redirectUris.includes(p.redirect_uri)) {

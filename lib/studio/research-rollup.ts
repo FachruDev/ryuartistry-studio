@@ -105,6 +105,41 @@ export function aggregateTopics(rows: FindingRow[]): TopicAggregate[] {
   return out.sort((a, b) => b.opportunityScore - a.opportunityScore || b.occurrences - a.occurrences);
 }
 
+// ---------------------------------------------------------------------------
+// Scan support (Rina-Scout → Rina)
+// ---------------------------------------------------------------------------
+
+export type ScanSignal = { scanId: string; topic: string; keywords: string[] };
+
+/** Confidence bonus for a researched topic that the trend scout also flagged. */
+export const SCAN_BONUS_FIRST = 1;
+export const SCAN_BONUS_MORE = 0.5;
+
+const opportunity = (t: Pick<TopicAggregate, "avgDemand" | "avgCompetition">, confidence: number) =>
+  round2(((t.avgDemand * (11 - t.avgCompetition)) / 10) * (confidence / 10));
+
+function supports(topic: TopicAggregate, s: ScanSignal): boolean {
+  if (normalizeTopic(s.topic) === topic.key) return true;
+  const mine = new Set(topic.keywords);
+  return s.keywords.filter((k) => mine.has(k.trim().toLowerCase())).length >= 2;
+}
+
+/**
+ * Scans are evidence, not findings: a researched topic flagged by 1 scan gets +1 confidence,
+ * by 2+ scans +1.5 (still capped at 10, and at 5 when the research has no sources).
+ */
+export function applyScanSupport<T extends TopicAggregate>(topics: T[], signals: ScanSignal[]): (T & { scanSupport: number })[] {
+  return topics
+    .map((t) => {
+      const scans = new Set(signals.filter((s) => supports(t, s)).map((s) => s.scanId)).size;
+      if (!scans) return { ...t, scanSupport: 0 };
+      let adjusted = Math.min(10, t.adjustedConfidence + SCAN_BONUS_FIRST + (scans > 1 ? SCAN_BONUS_MORE : 0));
+      if (!t.verified) adjusted = Math.min(adjusted, UNVERIFIED_CONFIDENCE_CAP);
+      return { ...t, scanSupport: scans, adjustedConfidence: round2(adjusted), opportunityScore: opportunity(t, adjusted) };
+    })
+    .sort((a, b) => b.opportunityScore - a.opportunityScore || b.occurrences - a.occurrences);
+}
+
 export type TopicWithTrend = TopicAggregate & { trend: Trend; delta: number | null };
 
 /** Compares this period's topics with the previous period's. */

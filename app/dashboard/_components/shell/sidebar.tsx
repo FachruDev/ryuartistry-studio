@@ -7,6 +7,7 @@ import { NAV_GROUPS, activeItem, type NavCounts } from "./nav-config";
 import { IconChevron, IconLogout, NAV_ICONS } from "./nav-icons";
 
 const TEAM = [
+  { name: "Rina-Scout", role: "Tren" },
   { name: "Rina", role: "Riset" },
   { name: "Shion", role: "Ide" },
   { name: "Lukas", role: "Saring ide" },
