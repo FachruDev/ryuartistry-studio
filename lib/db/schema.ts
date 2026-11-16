@@ -79,7 +79,11 @@ export const publicationStatus = pgEnum("publication_status", [
   "approved",
   "rejected",
   "scheduled",
+  /** Uploaded to the platform, waiting for its review (Adobe Stock moderation). */
+  "submitted",
   "published",
+  /** The platform itself refused the asset. */
+  "platform_rejected",
 ]);
 
 const timestamps = {
@@ -291,10 +295,18 @@ export const publications = pgTable("publications", {
   keywords: text("keywords").array().notNull().default([]),
   hashtags: text("hashtags").array().notNull().default([]),
   category: text("category"),
+  /** File name used on the platform; must match the CSV row for Adobe Stock (<= 30 chars). */
+  fileName: text("file_name"),
   aiLabel: boolean("ai_label").notNull(),
   scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
   status: publicationStatus("status").notNull().default("awaiting_approval"),
   reviewerNote: text("reviewer_note"),
+  /** Human 1-10 score given at approval time, used to calibrate Kechlyn's rubric. */
+  humanScore: smallint("human_score"),
+  /** Score Kechlyn gave the approved asset version, copied for calibration. */
+  agentScore: real("agent_score"),
+  platformNote: text("platform_note"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   externalId: text("external_id"),

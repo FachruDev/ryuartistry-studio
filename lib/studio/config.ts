@@ -36,11 +36,56 @@ export const ROLE_QUEUES: Record<Exclude<AgentRole, "admin" | "rina">, JobStatus
   kechlyn: ["final_review", "publish_prep"],
 };
 
+/**
+ * Adobe Stock categories for the CSV "Category" column (number -> name).
+ * Source: Adobe Stock contributor category list; verify against the portal if Adobe changes it.
+ */
+export const ADOBE_CATEGORIES: Record<number, string> = {
+  1: "Animals",
+  2: "Buildings and Architecture",
+  3: "Business",
+  4: "Drinks",
+  5: "The Environment",
+  6: "States of Mind",
+  7: "Food",
+  8: "Graphic Resources",
+  9: "Hobbies and Leisure",
+  10: "Industry",
+  11: "Landscape",
+  12: "Lifestyle",
+  13: "People",
+  14: "Plants and Flowers",
+  15: "Culture and Religion",
+  16: "Science",
+  17: "Social Issues",
+  18: "Sports",
+  19: "Technology",
+  20: "Transport",
+  21: "Travel",
+};
+
+/** Thresholds a platform must reach before publishing may run without a human (design §10). */
+export const AUTO_MODE_CRITERIA = {
+  minHumanReviewed: 50,
+  minHumanApprovalRate: 0.9,
+  minPlatformAcceptanceRate: 0.8,
+} as const;
+
 export const PLATFORM_SPECS = {
   adobe_stock: {
+    // https://helpx.adobe.com/stock/contributor/submit-your-content/submit-photos/technical-legal-requirements-photo-submission.html
     minMegapixels: 4,
+    maxMegapixels: 100,
+    maxBytes: 45 * 1024 * 1024,
     contentTypes: ["image/jpeg"],
+    colorSpaces: ["srgb"],
+    // https://helpx.adobe.com/stock/contributor/manage-your-portfolio/csv-requirements-content.html
+    maxTitleLength: 70,
+    maxFileNameLength: 30,
+    minKeywords: 5,
     maxKeywords: 49,
+    /** dHash distance at or below which two images count as near-duplicates. */
+    duplicateMaxDistance: 6,
   },
   facebook_reels: {
     width: 1080,

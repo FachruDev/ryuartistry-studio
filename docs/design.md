@@ -1,6 +1,6 @@
 # Ryuartistry Studio — Dokumen Desain
 
-Status: **Draf v0.2** (Fase 0 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
+Status: **Draf v0.3** (Fase 0 dan 1 diimplementasikan, lihat [docs/setup.md](setup.md)) · Terakhir diperbarui: 2026-11-16
 
 Studio konten otomatis berbasis multi-agen. Agen-agen AI bekerja dalam siklus riset → ide → review → eksekusi → review → publikasi. Mereka terhubung lewat **MCP server milik sendiri (`ryuartistry-studio`)** yang menjadi "kantor": antrian kerja, aturan, dan arsip.
 
@@ -217,9 +217,10 @@ Dijalankan oleh kode server sebelum Kechlyn menilai. Murah, pasti, dan menghemat
 4. **auto_check** (§4.4).
 5. **Kechlyn** (Claude, vision) menilai dengan rubrik aset gambar (§7.2).
 6. **Kechlyn** menyiapkan publikasi:
-   - Judul singkat dan deskriptif (bahasa Inggris).
-   - Keyword maksimal 49, **10 teratas paling penting** dan relevan langsung.
-   - Kategori.
+   - Judul bahasa Inggris, deskriptif, **maksimal 70 karakter dan tanpa koma** (aturan CSV Adobe).
+   - Keyword 5–49, unik, **10 teratas paling penting** dan relevan langsung; tanpa data teknis.
+   - Kategori berupa angka 1–21 sesuai daftar kategori Adobe.
+   - Nama file maksimal 30 karakter (dibuat server) agar cocok dengan baris CSV.
    - Tanda **"Created using generative AI tools"** wajib dicentang.
    - Tanpa nama merek, orang nyata, atau gaya seniman tertentu di judul/keyword.
 7. Approval manusia (fase awal) → upload.
@@ -325,8 +326,8 @@ Data performa adalah sinyal utama yang menunjukkan ide mana yang benar-benar men
 
 | Fase | Isi |
 |---|---|
-| **0 — Fondasi** | Skema DB, MCP server dengan tools dasar, S3, dashboard status sederhana |
-| **1 — Gambar manual-assist** | Alur gambar lengkap, approval manusia, kit publikasi manual. Kalibrasi rubrik |
+| **0 — Fondasi** ✅ | Skema DB, MCP server dengan tools dasar, S3, dashboard status sederhana |
+| **1 — Gambar manual-assist** ✅ | Alur gambar lengkap, pemeriksaan file asli + cek duplikat, approval manusia dengan skor, kit upload + CSV Adobe, pencatatan hasil Adobe, kalibrasi rubrik, playbook agen |
 | **2 — Riset & rollup** | Rina 3x sehari + rollup harian/mingguan/bulanan, impor performa |
 | **3 — Reels** | Storyboard gate, produksi Linda (Claude), review Kechlyn, approval manusia |
 | **4 — Otomasi** | Scheduler stabil, pindahkan langkah yang sering jalan ke API, publikasi otomatis per platform |

@@ -1,12 +1,13 @@
-/** Execution, final review, publication prep and human approval (Linda, Kechlyn, dashboard). */
-import { eq } from "drizzle-orm";
+/** Execution and final review (Linda, Kechlyn). */
+import { and, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { assets, cycles, jobs, publications, reviews, type FailureDiagnosis } from "@/lib/db/schema";
-import { assetKey, headObject, presignUpload } from "@/lib/storage";
+import { assets, jobs, reviews, type FailureDiagnosis, type Platform } from "@/lib/db/schema";
+import { assetKey, getObjectBytes, headObject, presignUpload } from "@/lib/storage";
 import { runAutoCheck } from "../auto-check";
 import { PLATFORM_SPECS } from "../config";
+import { hammingDistance, inspectImage, type ImageFacts } from "../image-inspect";
 import { getRubric, scoreReview, type ReviewInput } from "../rubrics";
-import { decideApproval, decideAutoCheck, decideFinalReview } from "../workflow";
+import { decideAutoCheck, decideFinalReview } from "../workflow";
 import { StudioError, actorName, applyDecision, latestAsset, lockJob, moveJob, rubricForAsset, type Agent } from "./core";
 
 // Linda
@@ -50,6 +51,17 @@ export async function submitAsset(
   const head = await headObject(input.s3Key);
   if (!head) throw new StudioError("File belum ada di storage. Upload dulu ke uploadUrl dari create_asset_upload.");
 
+  const [current] = await db.select({ platform: jobs.platform }).from(jobs).where(eq(jobs.id, jobId));
+  if (!current) throw new StudioError(`Job ${jobId} tidak ditemukan`);
+
+  // Image facts come from the file itself, read before the transaction (network + decode).
+  let image: ImageFacts | undefined;
+  let nearestDuplicate: { assetId: string; distance: number } | null = null;
+  if (current.platform === "adobe_stock" && head.bytes <= PLATFORM_SPECS.adobe_stock.maxBytes) {
+    image = await inspectImage(await getObjectBytes(input.s3Key));
+    if (image.dhash) nearestDuplicate = await findNearestDuplicate(current.platform, jobId, image.dhash);
+  }
+
   return db.transaction(async (tx) => {
     const job = await lockJob(tx, jobId, ["executing", "exec_revision"]);
     const prev = await latestAsset(tx, jobId);
@@ -59,6 +71,8 @@ export async function submitAsset(
       width: input.width,
       height: input.height,
       durationSec: input.durationSec,
+      image,
+      nearestDuplicate,
     });
     const [asset] = await tx
       .insert(assets)
@@ -68,9 +82,10 @@ export async function submitAsset(
         s3Key: input.s3Key,
         contentType: input.contentType,
         bytes: head.bytes,
-        width: input.width,
-        height: input.height,
+        width: image?.width ?? input.width,
+        height: image?.height ?? input.height,
         durationSec: input.durationSec,
+        phash: image?.dhash ?? null,
         autoCheck: check,
         notes: input.notes,
       })
@@ -87,6 +102,24 @@ export async function submitAsset(
     );
     return { assetId: asset.id, version: asset.version, autoCheck: check, nextStatus: decision.status };
   });
+}
+
+/**
+ * Closest earlier asset on the same platform from other jobs, by dHash distance.
+ * Linear scan: fine for thousands of assets; move to a bit-index if the library grows large.
+ */
+async function findNearestDuplicate(platform: Platform, jobId: string, dhash: string) {
+  const rows = await db
+    .select({ id: assets.id, phash: assets.phash })
+    .from(assets)
+    .innerJoin(jobs, eq(assets.jobId, jobs.id))
+    .where(and(eq(jobs.platform, platform), ne(assets.jobId, jobId), isNotNull(assets.phash)));
+  let best: { assetId: string; distance: number } | null = null;
+  for (const r of rows) {
+    const distance = hammingDistance(dhash, r.phash!);
+    if (!best || distance < best.distance) best = { assetId: r.id, distance };
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,76 +160,5 @@ export async function submitAssetReview(
     const decision = decideFinalReview(job, scored.passed, scored.passed ? null : input.diagnosis);
     await applyDecision(tx, job, decision, actorName(agent));
     return { ...scored, nextStatus: decision.status, reason: decision.reason };
-  });
-}
-
-export async function submitPublicationPrep(
-  agent: Agent,
-  jobId: string,
-  input: {
-    title: string;
-    caption?: string;
-    keywords: string[];
-    hashtags: string[];
-    category?: string;
-    aiLabel: boolean;
-    scheduledFor?: string;
-  },
-) {
-  return db.transaction(async (tx) => {
-    const job = await lockJob(tx, jobId, ["publish_prep"]);
-    const problems: string[] = [];
-    if (!input.aiLabel) problems.push("Label AI wajib true untuk konten buatan AI");
-    if (job.platform === "adobe_stock") {
-      const max = PLATFORM_SPECS.adobe_stock.maxKeywords;
-      if (input.keywords.length === 0) problems.push("Keyword wajib diisi untuk Adobe Stock");
-      if (input.keywords.length > max) problems.push(`Keyword maksimal ${max}, terkirim ${input.keywords.length}`);
-    } else if (!input.caption?.trim()) {
-      problems.push("Caption wajib diisi untuk reels");
-    }
-    if (problems.length) throw new StudioError(`Metadata tidak valid:\n- ${problems.join("\n- ")}`);
-
-    const asset = await latestAsset(tx, jobId);
-    if (!asset) throw new StudioError("Job tidak punya aset");
-    const [pub] = await tx
-      .insert(publications)
-      .values({
-        jobId,
-        assetId: asset.id,
-        platform: job.platform,
-        title: input.title,
-        caption: input.caption,
-        keywords: input.keywords,
-        hashtags: input.hashtags,
-        category: input.category,
-        aiLabel: input.aiLabel,
-        scheduledFor: input.scheduledFor ? new Date(input.scheduledFor) : null,
-      })
-      .returning();
-    await moveJob(tx, job, "awaiting_approval", actorName(agent), "Metadata publikasi siap, menunggu approval manusia");
-    return { publicationId: pub.id, nextStatus: "awaiting_approval" as const };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Human approval (dashboard)
-// ---------------------------------------------------------------------------
-
-export async function decidePublication(publicationId: string, approved: boolean, note?: string) {
-  return db.transaction(async (tx) => {
-    const [pub] = await tx.select().from(publications).where(eq(publications.id, publicationId)).for("update");
-    if (!pub || pub.status !== "awaiting_approval") throw new StudioError("Publikasi tidak menunggu approval");
-    const job = await lockJob(tx, pub.jobId, ["awaiting_approval"]);
-    await tx
-      .update(publications)
-      .set({
-        status: approved ? "approved" : "rejected",
-        reviewerNote: note ?? null,
-        approvedAt: approved ? new Date() : null,
-      })
-      .where(eq(publications.id, publicationId));
-    const d = decideApproval(approved);
-    await moveJob(tx, job, d.status, "human", note ? `${d.reason}: ${note}` : d.reason);
-    if (approved) await tx.update(cycles).set({ status: "done" }).where(eq(cycles.id, job.cycleId));
   });
 }

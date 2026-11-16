@@ -3,7 +3,7 @@ import { and, asc, desc, eq, isNull, lt, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { cycles, ideaGraveyard, ideas, jobs, researchReports, reviews, type AgentRole } from "@/lib/db/schema";
 import { presignDownload } from "@/lib/storage";
-import { LIMITS, PLATFORM_SPECS, ROLE_QUEUES } from "../config";
+import { ADOBE_CATEGORIES, LIMITS, PLATFORM_SPECS, ROLE_QUEUES } from "../config";
 import { getRubric, scoreReview, type ReviewInput } from "../rubrics";
 import { decideIdeaReview, decideStoryboardReview } from "../workflow";
 import {
@@ -17,6 +17,7 @@ import {
   rubricForAsset,
   type Agent,
 } from "./core";
+import { recentPlatformRejections } from "./publishing";
 
 // ---------------------------------------------------------------------------
 // Queue
@@ -88,6 +89,7 @@ export async function getJobContext(jobId: string) {
     },
     limits: LIMITS,
     platformSpec: PLATFORM_SPECS[job.platform],
+    adobeCategories: job.platform === "adobe_stock" ? ADOBE_CATEGORIES : undefined,
     research: report
       ? { id: report.id, period: report.periodStart, summary: report.summary, opportunities: report.opportunities }
       : null,
@@ -119,6 +121,8 @@ export async function getJobContext(jobId: string) {
       : null,
     rubric: rubricId[job.status] ? getRubric(rubricId[job.status]!) : null,
     ideaGraveyard: graveyard,
+    /** Why the platform refused earlier assets; avoid repeating these problems. */
+    platformRejections: await recentPlatformRejections(job.platform),
   };
 }
 

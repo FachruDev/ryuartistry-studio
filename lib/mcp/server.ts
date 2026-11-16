@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { AgentRole } from "@/lib/db/schema";
+import { PLAYBOOKS } from "@/lib/studio/playbooks";
 import { RUBRICS, getRubric } from "@/lib/studio/rubrics";
 import * as studio from "@/lib/studio/service";
 
@@ -56,7 +57,7 @@ const ROLE_INTRO: Record<Role, string> = {
 export function createStudioServer(agent: Agent): McpServer {
   const server = new McpServer(
     { name: "ryuartistry-studio", version: "0.1.0" },
-    { instructions: `${ROLE_INTRO[agent.role]} Aturan alur (batas revisi, routing, skor lolos) ditegakkan server; ikuti nextStatus di setiap hasil.` },
+    { instructions: `${ROLE_INTRO[agent.role]} Panggil get_playbook di awal setiap shift. Aturan alur (batas revisi, routing, skor lolos) ditegakkan server; ikuti nextStatus di setiap hasil.` },
   );
   const can = (...roles: Role[]) => agent.role === "admin" || roles.includes(agent.role);
 
@@ -65,6 +66,19 @@ export function createStudioServer(agent: Agent): McpServer {
     "whoami",
     { description: "Identitas dan peran token ini." },
     run(async () => ({ name: agent.name, role: agent.role, model: agent.model })),
+  );
+
+  server.registerTool(
+    "get_playbook",
+    {
+      description: "Instruksi kerja satu shift untuk peranmu. Panggil ini di awal setiap shift.",
+      inputSchema: {
+        role: z.enum(["rina", "shion", "lukas", "linda", "kechlyn", "admin"]).optional().describe("Default: peran token ini"),
+      },
+    },
+    async ({ role }: { role?: Role }) => ({
+      content: [{ type: "text" as const, text: PLAYBOOKS[role && agent.role === "admin" ? role : agent.role] }],
+    }),
   );
 
   server.registerTool(
@@ -218,13 +232,13 @@ export function createStudioServer(agent: Agent): McpServer {
       "submit_asset",
       {
         description:
-          "Kirim aset yang sudah di-upload. Server menjalankan cek teknis (resolusi/format/durasi) lalu meneruskan ke Kechlyn atau mengembalikannya untuk revisi.",
+          "Kirim aset yang sudah di-upload. Server membaca file gambar langsung (format JPEG, sRGB, 4-100 MP, maks 45 MB, kemiripan dengan aset lain) lalu meneruskan ke Kechlyn atau mengembalikannya untuk revisi. Untuk video, isi width/height/duration_sec.",
         inputSchema: {
           job_id: z.string().uuid(),
           s3_key: z.string(),
           content_type: z.enum(["image/jpeg", "image/png", "video/mp4"]),
-          width: z.number().int().positive(),
-          height: z.number().int().positive(),
+          width: z.number().int().positive().optional().describe("Untuk gambar dibaca dari file; wajib untuk video"),
+          height: z.number().int().positive().optional().describe("Untuk gambar dibaca dari file; wajib untuk video"),
           duration_sec: z.number().positive().optional().describe("Wajib untuk video"),
           notes: z.string().optional().describe("Catatan untuk Kechlyn: tool, prompt, perubahan dari versi sebelumnya"),
         },
@@ -234,16 +248,16 @@ export function createStudioServer(agent: Agent): McpServer {
           job_id: string;
           s3_key: string;
           content_type: string;
-          width: number;
-          height: number;
+          width?: number;
+          height?: number;
           duration_sec?: number;
           notes?: string;
         }) =>
           studio.submitAsset(agent, a.job_id, {
             s3Key: a.s3_key,
             contentType: a.content_type,
-            width: a.width,
-            height: a.height,
+            width: a.width ?? null,
+            height: a.height ?? null,
             durationSec: a.duration_sec ?? null,
             notes: a.notes,
           }),
@@ -274,14 +288,14 @@ export function createStudioServer(agent: Agent): McpServer {
       "submit_publication_prep",
       {
         description:
-          "Siapkan metadata publikasi untuk job berstatus publish_prep (hanya setelah aset lolos). Adobe: judul bahasa Inggris, maks 49 keyword (10 teratas paling penting), kategori. Reels: caption, hashtag, jadwal. ai_label wajib true.",
+          "Siapkan metadata publikasi untuk job berstatus publish_prep (hanya setelah aset lolos). Adobe Stock: judul bahasa Inggris maks 70 karakter tanpa koma; 5-49 keyword diurutkan dari yang paling relevan (10 teratas paling penting); kategori angka 1-21 (lihat adobeCategories di get_job); jangan sebut nama tool AI. Reels: caption, hashtag, jadwal. ai_label wajib true.",
         inputSchema: {
           job_id: z.string().uuid(),
           title: z.string().min(3),
           caption: z.string().optional(),
           keywords: z.array(z.string()).default([]),
           hashtags: z.array(z.string()).default([]),
-          category: z.string().optional(),
+          category: z.union([z.string(), z.number().int()]).transform(String).optional(),
           ai_label: z.boolean(),
           scheduled_for: z.string().datetime({ offset: true }).optional(),
         },

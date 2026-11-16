@@ -28,9 +28,27 @@ export function presignUpload(key: string, contentType: string, expiresIn = 3600
   });
 }
 
-/** URL a reviewer (or the dashboard) uses to view the file. */
-export function presignDownload(key: string, expiresIn = 3600): Promise<string> {
-  return getSignedUrl(s3(), new GetObjectCommand({ Bucket: ASSET_BUCKET, Key: key }), { expiresIn });
+/**
+ * URL a reviewer (or the dashboard) uses to view the file.
+ * With `downloadAs`, the browser saves it under that file name instead of showing it.
+ */
+export function presignDownload(key: string, expiresIn = 3600, downloadAs?: string): Promise<string> {
+  return getSignedUrl(
+    s3(),
+    new GetObjectCommand({
+      Bucket: ASSET_BUCKET,
+      Key: key,
+      ...(downloadAs ? { ResponseContentDisposition: `attachment; filename="${downloadAs}"` } : {}),
+    }),
+    { expiresIn },
+  );
+}
+
+/** Reads a whole object into memory. Callers check the size with headObject first. */
+export async function getObjectBytes(key: string): Promise<Buffer> {
+  const res = await s3().send(new GetObjectCommand({ Bucket: ASSET_BUCKET, Key: key }));
+  if (!res.Body) throw new Error(`Object ${key} has no body`);
+  return Buffer.from(await res.Body.transformToByteArray());
 }
 
 /** Returns size and content type, or null when the object does not exist. */

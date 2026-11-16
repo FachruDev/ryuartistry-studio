@@ -3,16 +3,38 @@
 import { refresh } from "next/cache";
 import { headers } from "next/headers";
 import { isDashboardAuthorized } from "@/lib/dashboard-auth";
-import { decidePublication } from "@/lib/studio/service";
+import { decidePublication, markSubmitted, recordPlatformResult } from "@/lib/studio/service";
 
-export async function decidePublicationAction(formData: FormData): Promise<void> {
+async function requireAuth() {
   if (!isDashboardAuthorized((await headers()).get("authorization"))) {
     throw new Error("Unauthorized");
   }
-  const publicationId = String(formData.get("publicationId") ?? "");
+}
+
+const text = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim() || undefined;
+
+export async function decidePublicationAction(formData: FormData): Promise<void> {
+  await requireAuth();
   const approved = formData.get("decision") === "approve";
-  const note = String(formData.get("note") ?? "").trim() || undefined;
+  const note = text(formData, "note");
   if (!approved && !note) throw new Error("Penolakan wajib disertai catatan untuk Linda");
-  await decidePublication(publicationId, approved, note);
+  await decidePublication(String(formData.get("publicationId")), approved, Number(formData.get("humanScore")), note);
+  refresh();
+}
+
+export async function markSubmittedAction(formData: FormData): Promise<void> {
+  await requireAuth();
+  await markSubmitted(formData.getAll("publicationId").map(String));
+  refresh();
+}
+
+export async function recordPlatformResultAction(formData: FormData): Promise<void> {
+  await requireAuth();
+  await recordPlatformResult(
+    String(formData.get("publicationId")),
+    formData.get("result") === "accepted",
+    text(formData, "note"),
+    text(formData, "externalId"),
+  );
   refresh();
 }

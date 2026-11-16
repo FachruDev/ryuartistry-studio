@@ -5,4 +5,5 @@
 export { StudioError, authenticate, hashToken, type Agent } from "./core";
 export * from "./pipeline";
 export * from "./execution";
+export * from "./publishing";
 export * from "./research";
