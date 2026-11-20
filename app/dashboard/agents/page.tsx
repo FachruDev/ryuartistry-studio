@@ -114,10 +114,10 @@ async function AgentsData() {
                         <AgentConnections connections={connections.filter((c) => c.agentId === a.id)} />
                       </div>
                       <div>
-                        <p className="text-xs text-subtle">Atau header (Claude Code, Gemini CLI, API xAI): URL di atas + Authorization: Bearer &lt;token {a.name}&gt;</p>
+                        <p className="text-xs text-subtle">Atau header (Claude Code CLI, API xAI): URL di atas + Authorization: Bearer &lt;token {a.name}&gt;</p>
                       </div>
                       <div>
-                        <p className="mb-1.5 text-xs text-subtle">Prompt / instruksi agen{kit.extraPrompts ? " (gambar)" : ""}</p>
+                        <p className="mb-1.5 text-xs text-subtle">Prompt / instruksi agen{kit.extraPrompts ? " (gambar, /design)" : ""}</p>
                         <CopyText text={kit.prompt} label={`Prompt terjadwal ${a.name}`} copyLabel="Salin prompt" rows={6} />
                       </div>
                       {kit.extraPrompts?.map((x) => (

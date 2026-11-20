@@ -1,6 +1,6 @@
 /**
  * OAuth 2.1 for the MCP endpoint (MCP authorization spec). Clients are the AI apps (Claude.ai,
- * ChatGPT, Gemini, Grok); each grant binds one client to one studio agent. Secrets, codes and
+ * Grok); each grant binds one client to one studio agent. Secrets, codes and
  * tokens are stored only as sha256 hashes.
  */
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";

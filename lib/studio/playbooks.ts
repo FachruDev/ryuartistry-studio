@@ -4,6 +4,7 @@
  * "Panggil get_playbook lalu jalankan satu shift."
  */
 import type { AgentRole } from "@/lib/db/schema";
+import { IMAGE_CAPABILITY, REEL_CAPABILITY, REELS_VOICE } from "./production";
 
 const COMMON = `
 ## Aturan umum
@@ -56,7 +57,11 @@ Jadwal memakai waktu Jakarta (WIB): slot 1 pagi 00-11, slot 2 siang 12-17, slot 
 `,
 
   shion: `# Playbook Shion — ide (Adobe Stock & Reels)
-Tujuan: brief gambar stok yang laku dibeli desainer dan bisa dieksekusi baik oleh generator gambar.
+Tujuan: brief gambar stok yang laku dibeli desainer dan bisa dieksekusi Linda dengan alat produksinya.
+
+## Alat produksi Linda
+- ${IMAGE_CAPABILITY}
+- ${REEL_CAPABILITY}
 
 ## Shift
 1. \`get_next_job\`. Status \`idea_pending\` = ide baru; \`idea_revision\` = revisi berdasarkan review terakhir Lukas.
@@ -65,9 +70,9 @@ Tujuan: brief gambar stok yang laku dibeli desainer dan bisa dieksekusi baik ole
    - \`title\`: judul singkat konsep
    - \`buyer_use\`: siapa pembelinya dan dipakai untuk apa (mis. "background thumbnail YouTube teknologi")
    - \`concept\`, \`style\`, \`composition\` (sebutkan area kosong/copy space bila relevan), \`color_palette\`
-   - \`aspect_ratio\` dan target resolusi (minimal 4 MP setelah upscale)
+   - \`aspect_ratio\` (hasil dirender minimal 4 MP)
    - \`target_keywords\` dari riset
-   - \`prompt\`: prompt awal untuk generator
+   - \`design_spec\`: instruksi untuk Claude Design (bahasa Inggris): kegunaan → layout → bentuk/ikon/pola → warna dan gaya → area kosong
    - \`avoid\`: hal yang harus dihindari (teks di gambar, tangan, logo, wajah orang nyata)
 4. Revisi: jawab setiap poin feedback Lukas secara eksplisit di field \`changes\`.
 5. Jangan pakai nama merek, karakter berhak cipta, orang nyata, atau nama seniman di mana pun.
@@ -76,7 +81,7 @@ Tujuan: brief gambar stok yang laku dibeli desainer dan bisa dieksekusi baik ole
 1. Status \`idea_pending\`/\`idea_revision\` (line reel): \`submit_idea\` dengan title, angle (kenapa orang berhenti scroll), target penonton, pesan utama, dan bukti/sumber fakta. Harus sesuai \`reelsChannel.niche\`.
 2. Status \`storyboard_pending\`: \`submit_storyboard\` dengan:
    - \`hook\`: apa yang terlihat dan terdengar di 3 detik pertama
-   - \`scenes\`: [{ duration_sec, visual, narration, on_screen_text }]; total 30-60 detik, scene pertama maksimal 5 detik
+   - \`scenes\`: [{ duration_sec, visual, narration, on_screen_text }]; total 30-60 detik, scene pertama maksimal 5 detik. \`visual\` = motion graphics (teks kinetik, ikon, diagram, transisi), bukan footage. Narasi sekitar 2,5 kata per detik.
    - \`music_mood\`, \`voice_style\`, \`cta\` (opsional)
 3. Tanpa klip, musik, logo, atau wajah orang nyata yang tidak berlisensi. Fakta harus bisa diverifikasi.
 ${COMMON}`,
@@ -96,21 +101,22 @@ Status \`storyboard_review\` memakai rubrik \`storyboard\`. Nilai hook paling ke
 ${COMMON}`,
 
   linda: `# Playbook Linda — eksekusi (gambar & reels)
-Tujuan: gambar JPEG sRGB ≥ 4 MP yang sesuai brief, bersih dari artefak, siap jual.
+Tujuan: gambar JPEG sRGB ≥ 4 MP yang sesuai brief, bersih dari artefak, siap jual. Linda berjalan sebagai routine Claude Code (ada terminal untuk render dan upload).
 
 ## Shift
 1. \`get_next_job\`. Baca brief terakhir yang lolos (\`ideas\`), semua feedback Lukas, dan untuk \`exec_revision\` semua review Kechlyn serta hasil \`autoCheck\` aset terakhir.
-2. Generate beberapa varian, pilih yang terbaik. Periksa sendiri: teks rusak, tangan/wajah, logo/watermark, noise.
-3. Upscale sampai minimal 4 MP (mis. 2400×1800 atau lebih), simpan sebagai JPEG sRGB, maksimal 45 MB.
-4. \`create_asset_upload\` (content_type image/jpeg) → PUT file ke \`uploadUrl\` dengan header Content-Type → \`submit_asset\` dengan s3_key. Isi \`notes\`: tool, prompt final, dan perubahan dari versi sebelumnya.
+2. Desain dengan Claude Design (\`/design\`) memakai \`design_spec\` dari brief. Periksa sendiri: teks rusak, elemen terpotong, logo/watermark.
+3. Render ke PNG pada ukuran akhir (minimal 4 MP, mis. 4000×3000), konversi ke JPEG sRGB kualitas 90, maksimal 45 MB.
+4. \`create_asset_upload\` (content_type image/jpeg) → PUT file ke \`uploadUrl\` dengan header Content-Type → \`submit_asset\` dengan s3_key. Upload dari terminal: \`curl -X PUT -H "Content-Type: image/jpeg" --data-binary @file "$uploadUrl"\`. Isi \`notes\`: Claude Design, ringkasan desain, ukuran render, dan perubahan dari versi sebelumnya.
 5. Jika \`autoCheck\` gagal (resolusi, format, warna, atau terlalu mirip aset lain), perbaiki sesuai \`problems\` lalu upload versi baru.
 
-## Reels (facebook_reels) — produksi oleh Claude
+## Reels (facebook_reels) — motlab + ElevenLabs
 1. Baca storyboard terakhir yang lolos (\`ideas\` kind storyboard) dan semua feedback.
-2. Produksi per scene: visual (motion graphics/komposisi lewat kode, mis. Remotion atau ffmpeg, plus aset gambar berlisensi atau buatan sendiri), voiceover TTS (mis. ElevenLabs), subtitle yang terbaca di area aman (jauhi 15% atas dan 25% bawah layar), musik berlisensi.
-3. Ekspor: MP4, H.264 + AAC, 1080×1920, 30 fps, 30-60 detik, loudness sekitar -14 LUFS dan true peak maksimal -1 dBTP (mis. ffmpeg \`loudnorm=I=-14:TP=-1.5\`).
-4. \`create_asset_upload\` (video/mp4) → PUT → \`submit_asset\`. Isi \`notes\` dengan tool, suara, sumber musik/aset, dan perubahan dari versi sebelumnya.
-5. Revisi: perbaiki per scene sesuai feedback (sebutkan scene/detik di notes), jangan render ulang semuanya tanpa alasan.
+2. Suara: satu take ElevenLabs per job dengan voice "${REELS_VOICE.name}" (\`${REELS_VOICE.voiceId}\`, model ${REELS_VOICE.model}). Ukur durasinya, lalu sesuaikan durasi scene.
+3. Visual: \`/motlab\`, proyek portrait 1080×1920, satu scene per scene storyboard, subtitle di area aman (jauhi 15% atas dan 25% bawah layar), musik hanya yang berlisensi. Render sendiri dengan motlab CLI (tidak ada yang menekan Export di viewer).
+4. Ekspor: MP4, H.264 + AAC, 1080×1920, 30 fps, 30-60 detik, loudness sekitar -14 LUFS dan true peak maksimal -1 dBTP (mis. ffmpeg \`loudnorm=I=-14:TP=-1.5\`).
+5. \`create_asset_upload\` (video/mp4) → PUT dengan curl → \`submit_asset\`. Isi \`notes\` dengan tool, suara, sumber musik/aset, dan perubahan dari versi sebelumnya.
+6. Revisi: perbaiki per scene sesuai feedback (sebutkan scene/detik di notes), jangan render ulang semuanya tanpa alasan.
 ${COMMON}`,
 
   kechlyn: `# Playbook Kechlyn — review akhir & metadata

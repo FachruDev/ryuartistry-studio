@@ -1,19 +1,50 @@
 {
   "id": "storyboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "title": "Rubrik storyboard reels (Lukas)",
-  "appliesTo": ["reel"],
-  "instructions": "Nilai naskah dan storyboard per scene dari Shion sebelum Linda memproduksi video. Semua hard gate harus true agar bisa lolos. Beri skor bulat 1-10 untuk setiap kriteria. Untuk setiap kriteria dengan skor di bawah 8, wajib tulis masalahnya dan saran perbaikan yang konkret di feedback. Walau lolos, tetap beri minimal satu saran peningkatan.",
+  "appliesTo": [
+    "reel"
+  ],
+  "instructions": "Nilai naskah dan storyboard per scene dari Shion sebelum Linda memproduksi video. Semua hard gate harus true agar bisa lolos. Beri skor bulat 1-10 untuk setiap kriteria. Untuk setiap kriteria dengan skor di bawah 8, wajib tulis masalahnya dan saran perbaikan yang konkret di feedback. Walau lolos, tetap beri minimal satu saran peningkatan. Feasibility: setiap scene harus bisa dibuat sebagai motion graphics dengan motlab (teks kinetik, ikon, diagram, ilustrasi) tanpa footage atau wajah realistis, dan narasi harus muat di durasi scene (sekitar 2,5 kata per detik untuk suara ElevenLabs).",
   "gates": [
-    { "id": "duration_fits", "label": "Total durasi scene 30-60 detik" },
-    { "id": "no_ip", "label": "Tidak ada musik, klip, merek, atau orang nyata tanpa lisensi" },
-    { "id": "no_misleading_claims", "label": "Tidak ada klaim menyesatkan" }
+    {
+      "id": "duration_fits",
+      "label": "Total durasi scene 30-60 detik"
+    },
+    {
+      "id": "no_ip",
+      "label": "Tidak ada musik, klip, merek, atau orang nyata tanpa lisensi"
+    },
+    {
+      "id": "no_misleading_claims",
+      "label": "Tidak ada klaim menyesatkan"
+    }
   ],
   "criteria": [
-    { "id": "hook", "label": "Hook 3 detik pertama", "weight": 0.30 },
-    { "id": "flow", "label": "Alur dan tempo antar scene (tidak ada bagian membosankan)", "weight": 0.25 },
-    { "id": "feasibility", "label": "Setiap scene dapat diproduksi dengan tool yang tersedia", "weight": 0.20 },
-    { "id": "value", "label": "Nilai bagi penonton / orisinalitas", "weight": 0.15 },
-    { "id": "clarity", "label": "Kejelasan instruksi per scene untuk Linda", "weight": 0.10 }
+    {
+      "id": "hook",
+      "label": "Hook 3 detik pertama",
+      "weight": 0.3
+    },
+    {
+      "id": "flow",
+      "label": "Alur dan tempo antar scene (tidak ada bagian membosankan)",
+      "weight": 0.25
+    },
+    {
+      "id": "feasibility",
+      "label": "Setiap scene dapat dibuat dengan motlab + suara ElevenLabs",
+      "weight": 0.2
+    },
+    {
+      "id": "value",
+      "label": "Nilai bagi penonton / orisinalitas",
+      "weight": 0.15
+    },
+    {
+      "id": "clarity",
+      "label": "Kejelasan instruksi per scene untuk Linda",
+      "weight": 0.1
+    }
   ]
 }

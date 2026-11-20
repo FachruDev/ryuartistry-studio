@@ -17,9 +17,9 @@ import { hashToken } from "@/lib/studio/service";
 const TEAM: { name: string; role: AgentRole; model: string }[] = [
   { name: "Rina-Scout", role: "rina_scout", model: "grok" },
   { name: "Rina", role: "rina", model: "claude" },
-  { name: "Shion", role: "shion", model: "chatgpt" },
+  { name: "Shion", role: "shion", model: "grok" },
   { name: "Lukas", role: "lukas", model: "claude" },
-  { name: "Linda", role: "linda", model: "gemini/gpt-image (gambar), claude (reels)" },
+  { name: "Linda", role: "linda", model: "claude (/design gambar, /motlab reels)" },
   { name: "Kechlyn", role: "kechlyn", model: "claude" },
   { name: "Admin", role: "admin", model: "human" },
 ];

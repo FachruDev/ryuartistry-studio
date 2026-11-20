@@ -6,13 +6,17 @@ import { Badge, Panel, Section, fmtDate } from "./ui";
 type Connection = Awaited<ReturnType<typeof listConnections>>[number];
 
 const OAUTH_APPS = [
-  { app: "Claude.ai / Claude Desktop", steps: "Settings → Connectors → Add custom connector. Tempel URL khusus agen (mis. …/api/mcp/lukas), biarkan Advanced settings kosong. Satu konektor per agen." },
-  { app: "ChatGPT", steps: "Plugins / Developer mode → Add custom MCP server. Tempel URL khusus agen, pilih autentikasi OAuth." },
-  { app: "Gemini app", steps: "Settings → Connected apps → Custom apps (saat ini terbatas akun pribadi di AS). Tempel URL khusus agen." },
-  { app: "Grok (grok.com)", steps: "grok.com/connectors → New Connector → Custom. Tempel URL khusus agen lalu selesaikan sign-in." },
+  {
+    app: "Claude Code routine (Rina, Lukas, Linda, Kechlyn)",
+    steps: "claude.ai → Settings → Connectors → Add custom connector dengan URL khusus agen. Di claude.ai/code buat routine, aktifkan konektor itu, tempel prompt dari kit agen, lalu tambah trigger API dan salin Fire URL + token ke Pemicu otomatis.",
+  },
+  {
+    app: "Grok Automation (Rina-Scout, Shion)",
+    steps: "grok.com/connectors → New Connector → Custom dengan URL khusus agen. Buat Automation dengan prompt dari kit agen, tambah pemicu webhook, lalu salin URL + secret whsec_ ke Pemicu otomatis.",
+  },
 ];
 
-const HEADER_APPS = "Claude Code, Gemini CLI, dan API xAI (Remote MCP) bisa memakai header Authorization: Bearer <token agen> dari kit koneksi tiap agen.";
+const HEADER_APPS = "Claude Code (CLI) dan API xAI (Remote MCP) juga bisa memakai header Authorization: Bearer <token agen> dari kit koneksi tiap agen.";
 
 /** How each AI app connects: OAuth (sign in + pick agent) or a static header token. */
 export function ConnectGuide({ mcpUrl, delay }: { mcpUrl: string; delay?: number }) {

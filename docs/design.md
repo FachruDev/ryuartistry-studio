@@ -19,9 +19,9 @@ Dua lini produk awal:
 |---|---|---|---|---|
 | **Rina-Scout** | Pemindai tren harian | Grok | Tren X, berita, event | Pindaian tren 3x sehari (bahan riset, bukan hasil) |
 | **Rina** | Riset pasar mendalam | Claude | Pindaian Rina-Scout, sumber web, data performa | Laporan riset harian + rollup mingguan/bulanan/tahunan |
-| **Shion** | Pembuat ide/skenario | ChatGPT | Riset Rina, catatan ide yang dibuang, feedback | Brief ide (gambar) atau naskah + storyboard (reels) |
+| **Shion** | Pembuat ide/skenario | Grok | Riset Rina, catatan ide yang dibuang, feedback | Brief ide (gambar) atau naskah + storyboard (reels) |
 | **Lukas** | Reviewer ide | Claude | Brief ide + rubrik ide | Skor, keputusan lolos/revisi, saran perbaikan |
-| **Linda** | Eksekutor | Gambar: Gemini / GPT Image · Reels: Claude | Brief yang disetujui + feedback | Aset final (gambar/video) |
+| **Linda** | Eksekutor | Claude: gambar dengan Claude Design (/design), reels dengan motlab (/motlab) + suara ElevenLabs | Brief yang disetujui + feedback | Aset final (gambar/video) |
 | **Kechlyn** | Reviewer akhir, manajer & persiapan publikasi | Gambar: Claude · Reels: lihat §12 | Aset + brief + rubrik aset | Skor, diagnosis kegagalan, metadata publikasi |
 
 Prinsip:
@@ -35,15 +35,14 @@ Prinsip:
 ## 2. Arsitektur
 
 ```
- ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐
- │ Claude    │ │ ChatGPT   │ │ Grok      │ │ Gemini/GPT│   ← klien AI (host MCP)
- │ (Rina,    │ │ (Shion)   │ │ (Rina-    │ │ (Linda    │
- │ Lukas,    │ │           │ │  Scout)   │ │  gambar)  │
- │ Linda     │ │           │ │           │ │           │
- │ reels,    │ │           │ │           │ │           │
- │ Kechlyn)  │ │           │ │           │ │           │
- └─────┬─────┘ └─────┬─────┘ └─────┬─────┘ └─────┬─────┘
-       └─────────────┴──────┬──────┴─────────────┘
+ ┌──────────────────────────┐      ┌──────────────────────────┐
+ │ Claude Code routines     │      │ Grok Automations         │   ← klien AI (host MCP)
+ │ Rina, Lukas, Kechlyn,    │      │ Rina-Scout, Shion        │
+ │ Linda (/design, /motlab, │      │                          │
+ │ konektor ElevenLabs)     │      │                          │
+ └────────────┬─────────────┘      └────────────┬─────────────┘
+              └──────────────┬──────────────────┘
+       dipicu studio (API trigger routine / webhook Automation)
                             │  MCP (Streamable HTTP, token per peran)
                 ┌───────────▼────────────┐
                 │ ryuartistry-studio     │  Next.js
@@ -210,11 +209,11 @@ Dijalankan oleh kode server sebelum Kechlyn menilai. Murah, pasti, dan menghemat
 
 ## 5. Workflow Gambar (Adobe Stock)
 
-1. **Shion** membuat brief: konsep, kegunaan bagi pembeli (misalnya "background untuk thumbnail YouTube teknologi"), gaya, komposisi, area kosong untuk teks (*copy space*), target keyword dari riset, dan prompt awal.
+1. **Shion** membuat brief: konsep, kegunaan bagi pembeli (misalnya "background untuk thumbnail YouTube teknologi"), gaya, komposisi, area kosong untuk teks (*copy space*), target keyword dari riset, dan `design_spec` untuk Claude Design. Ide harus berupa desain grafis/ilustrasi, bukan foto realistis.
 2. **Lukas** menilai dengan rubrik ide gambar (§7.1).
-3. **Linda** (Gemini / GPT Image):
-   - generate beberapa varian → pilih terbaik → **upscale** ke ≥ 4 MP (output generator umumnya di bawah syarat Adobe).
-   - unggah ke S3 lewat `submit_asset`.
+3. **Linda** (Claude Code routine, Claude Design `/design`):
+   - desain → render ke PNG ≥ 4 MP di browser headless → JPEG sRGB.
+   - unggah langsung dari terminal (`curl -X PUT` ke URL presigned) lalu `submit_asset`.
 4. **auto_check** (§4.4).
 5. **Kechlyn** (Claude, vision) menilai dengan rubrik aset gambar (§7.2).
 6. **Kechlyn** menyiapkan publikasi:
@@ -384,7 +383,7 @@ Server menolak pemanggilan yang tidak sesuai status atau peran. Misalnya `submit
 - **Maksimal job aktif** per platform per hari (konfigurasi).
 - Setiap job menyimpan perkiraan biaya kumulatif; job yang biayanya melewati batas → `halted`.
 - Token MCP per peran, dapat dicabut. Kredensial platform (Adobe, Meta, S3) hanya disimpan di server, tidak pernah dikirim ke agen.
-- Aplikasi chat (Claude Desktop, ChatGPT) dengan scheduled task cukup untuk fase awal, tapi rentan timeout, approval, dan rate limit langganan. Untuk 24/7, langkah yang sering jalan dipindahkan ke pemanggilan API oleh scheduler; MCP server tidak berubah.
+- Agen berjalan di Claude Code routines dan Grok Automations, keduanya dipicu studio pada jam yang ditentukan (API trigger routine / webhook Automation). ChatGPT dan Gemini tidak dipakai karena tidak punya penjadwal yang bisa dipicu dari luar.
 
 ---
 
@@ -407,9 +406,9 @@ Kebijakan dapat berubah. Rina memeriksa pembaruan kebijakan kedua platform secar
 
 ## 15. Keputusan yang Masih Terbuka
 
-1. **Model Kechlyn untuk reels.** Linda reels memakai Claude. Jika Kechlyn juga Claude, ada risiko menilai karya model sendiri. Opsi: Gemini sebagai penilai video (dapat menonton video langsung), atau Claude dengan rubrik ketat + kalibrasi manusia.
+1. **Kechlyn menilai karya model yang sama.** Linda dan Kechlyn sama-sama Claude, jadi ada risiko menilai karya sendiri. Mitigasi: rubrik ketat, diagnosis wajib, dan kalibrasi terhadap skor manusia. Opsi berikutnya: Grok sebagai penilai kedua.
 2. **Niche kanal Facebook.** Diisi lewat `STUDIO_REELS_NICHE`; sampai diisi, dashboard dan konteks agen menampilkan peringatan.
-3. **Generator video/aset visual** yang dipakai Linda di dalam produksi reels (selain komposisi lewat kode).
+3. **Bahasa narasi reels.** Suara default "Lauren - Calm, clear, friendly" (ElevenLabs) berbahasa Inggris; bila niche kanal berbahasa Indonesia, pilih suara lain lewat `STUDIO_REELS_VOICE_ID`.
 4. **Jalur publikasi**: upload manual vs integrasi API untuk Adobe Stock dan Meta.
 5. **Hosting**: lokasi deploy MCP server + Postgres (misalnya Neon) + S3.
 6. **Anggaran bulanan** awal dan batas per agen.

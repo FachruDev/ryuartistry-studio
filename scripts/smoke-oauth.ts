@@ -1,5 +1,5 @@
 /**
- * End-to-end OAuth 2.1 smoke test of the MCP endpoint, the way Claude.ai / ChatGPT do it.
+ * End-to-end OAuth 2.1 smoke test of the MCP endpoint, the way Claude.ai and Grok do it.
  * The operator's approval is simulated with the same service call the consent page uses.
  *
  *   bun --env-file=.env --env-file=.env.local scripts/smoke-oauth.ts [baseUrl]

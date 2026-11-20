@@ -87,14 +87,14 @@ URL MCP:
 
 Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
 
-### 1. OAuth 2.1 — untuk aplikasi chat (Claude.ai, ChatGPT, Gemini app, Grok)
+### 1. OAuth 2.1 — untuk Claude.ai (routine Claude Code) dan Grok
 
 Tempel URL MCP sebagai konektor custom; biarkan pengaturan OAuth kosong. Alurnya mengikuti spesifikasi otorisasi MCP:
 
 1. Server menjawab `401` dengan `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/api/mcp"`.
 2. Aplikasi membaca metadata resource (RFC 9728) dan authorization server (`/.well-known/oauth-authorization-server`, RFC 8414).
 3. Aplikasi mendaftar sendiri lewat `/oauth/register` (Dynamic Client Registration, RFC 7591) atau memakai Client ID Metadata Document (client_id berupa URL HTTPS).
-4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu menyetujui agen dari URL konektor (URL bersama: **memilih agen**) (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
+4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu menyetujui agen dari URL konektor (URL bersama: **memilih agen**) (mis. Grok → Rina-Scout dan Shion, Claude.ai → Rina, Lukas, Linda, Kechlyn). Aplikasi hanya melihat tools agen tersebut.
 5. Token: PKCE S256 wajib; access token 1 jam, refresh token 30 hari dan **berotasi**; token terikat ke URL MCP ini (RFC 8707). Refresh token yang dipakai ulang atau kode yang dipakai dua kali mencabut seluruh koneksi itu.
 6. Cabut kapan saja: halaman **Agen** → kit koneksi agen → tombol **Cabut** (atau aplikasi memanggil `/oauth/revoke`).
 
@@ -102,7 +102,7 @@ Semua token, kode, dan secret klien disimpan hanya sebagai hash sha256. Isi `STU
 
 ### 2. Token statis — untuk klien yang bisa mengatur header
 
-Claude Code, Gemini CLI, dan API xAI (Remote MCP) bisa memakai token agen dari kit koneksi (`Authorization: Bearer rs_<peran>_…`). Ganti token dari halaman Agen bila bocor.
+Claude Code (CLI) dan API xAI (Remote MCP) bisa memakai token agen dari kit koneksi (`Authorization: Bearer rs_<peran>_…`). Ganti token dari halaman Agen bila bocor.
 
 Contoh konfigurasi klien yang mendukung remote MCP via HTTP (format bervariasi per aplikasi):
 
@@ -118,9 +118,9 @@ Contoh konfigurasi klien yang mendukung remote MCP via HTTP (format bervariasi p
 }
 ```
 
-Aplikasi chat seperti ChatGPT dan Claude.ai butuh server yang dapat diakses publik (bukan `localhost`), jadi agen baru bisa terhubung setelah server di-deploy atau diekspos lewat tunnel.
+Claude.ai dan Grok butuh server yang dapat diakses publik (bukan `localhost`), jadi agen baru bisa terhubung setelah server di-deploy atau diekspos lewat tunnel.
 
-Prompt terjadwal untuk setiap agen cukup: **"Panggil get_playbook lalu jalankan satu shift."** Playbook berisi langkah lengkap per peran.
+Prompt tiap agen ada di kit koneksi halaman Agen (salin ke routine / Automation). Langkah rinci per peran disajikan server lewat `get_playbook`.
 
 ## Alur gambar Adobe Stock (Fase 1)
 
@@ -199,7 +199,13 @@ Selain jadwal di dalam aplikasi AI, studio bisa membangunkan agen sendiri. Atur 
 
 **Claude (Rina, Lukas, Kechlyn, Linda reels).** Pakai routine Claude Code (claude.ai/code → scheduled tasks): buat tugas dengan prompt dari kit agen dan konektor MCP agen itu, lalu tambahkan trigger **API** dan klik Generate token. Isi form pemicu dengan Fire URL (`https://api.anthropic.com/v1/claude_code/routines/trig_…/fire`) dan token `sk-ant-oat01-…` di kolom secret. Studio mengenali URL ini dan mengirim `Authorization: Bearer <token>` + `anthropic-version` dengan body `{"text": "<payload JSON>"}`; run menerimanya sebagai blok `<routine-fire-payload>`. Token hanya tampil sekali dan Generate ulang mencabut token lama. Batas Anthropic: 30 fire per tugas per jam.
 
-**Aplikasi lain.** ChatGPT dan Gemini (gemini.google.com) belum bisa dipicu dari luar (per November 2026). Untuk agen-agen itu, pemicu webhook bisa diarahkan ke n8n/Make/Zapier yang memanggil API model, atau tetap memakai jadwal di aplikasinya.
+**Model yang dipakai.** Studio hanya memakai Claude (Claude Code routines: Rina, Lukas, Linda, Kechlyn) dan Grok (Automations: Rina-Scout, Shion). ChatGPT dan Gemini tidak dipakai karena penjadwalnya tidak bisa dipicu dari luar.
+
+**Linda (routine Claude Code).** Buat dua routine dengan konektor MCP Linda (`…/api/mcp/linda`):
+- *Gambar*: prompt gambar dari kit Linda. Memakai Claude Design (`/design`), render ke JPEG ≥ 4 MP di browser headless, lalu upload langsung dengan `curl -X PUT` ke URL presigned.
+- *Reels*: prompt reels dari kit Linda, plus konektor ElevenLabs. Suara default "Lauren - Calm, clear, friendly" (`X1amM3LR8OIq8LP92VpO`, model eleven_v4; ganti lewat `STUDIO_REELS_VOICE_ID`/`STUDIO_REELS_VOICE_NAME`). Visual dibuat dengan motlab (`/motlab`) dan dirender sendiri lewat CLI.
+- Environment routine butuh: Node, ffmpeg, Chromium (Playwright), `npm install -g @motlab/cli`, dan akses jaringan ke host storage Neon (`*.storage.c-3.ap-southeast-1.aws.neon.tech`), npm registry, dan host unduhan ElevenLabs. Tanpa akses jaringan itu, upload gagal.
+- Setiap job reels memakai satu take ElevenLabs (kredit), take kedua hanya bila take pertama rusak.
 
 ## Alur harian dan hasil kerja
 

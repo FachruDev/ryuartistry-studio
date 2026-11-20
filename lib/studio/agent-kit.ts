@@ -1,5 +1,5 @@
 /**
- * What to paste into each agent's chat app (Claude, ChatGPT, Grok...) to run it over MCP, plus
+ * What to paste into each agent's app (Claude Code routine or Grok Automation) to run it over MCP, plus
  * the suggested schedule. Prompts live in agent-prompts*.ts; rules and rubrics stay on the
  * server (get_playbook, get_rubric), so the pasted prompt does not go stale.
  */
@@ -20,38 +20,38 @@ export type AgentKit = {
 export const AGENT_KITS: Record<Exclude<AgentRole, "admin">, AgentKit> = {
   rina_scout: {
     schedule: "3x sehari: 06.30, 12.30, dan 18.30 WIB",
-    app: "Grok (tren real-time X dan berita)",
+    app: "Grok Automation (tren real-time X dan berita), dipicu webhook studio",
     prompt: PROMPT_RINA_SCOUT,
     times: "06:30, 12:30, 18:30",
   },
   rina: {
     schedule: "1x sehari: 20.00 WIB (setelah pindaian malam), rollup ikut di shift yang sama",
-    app: "Claude (riset mendalam + verifikasi sumber)",
+    app: "Claude Code routine (riset mendalam + verifikasi sumber), dipicu API trigger",
     prompt: PROMPT_RINA,
     times: "20:00",
   },
   shion: {
     schedule: "Tiap 2 jam",
-    app: "ChatGPT",
+    app: "Grok Automation (beda model dari Lukas, supaya penilaian tidak bias), dipicu webhook studio",
     prompt: PROMPT_SHION,
     times: "07:00, 09:00, 11:00, 13:00, 15:00, 17:00, 21:00, 23:00",
   },
   lukas: {
     schedule: "Tiap 2 jam, 30 menit setelah Shion",
-    app: "Claude",
+    app: "Claude Code routine, dipicu API trigger",
     prompt: PROMPT_LUKAS,
     times: "07:30, 09:30, 11:30, 13:30, 15:30, 17:30, 21:30, 23:30",
   },
   linda: {
     schedule: "Tiap 2 jam (reels butuh waktu render)",
-    app: "Gemini / GPT Image untuk gambar, Claude untuk reels (dua aplikasi, token Linda yang sama)",
+    app: "Dua Claude Code routine dengan konektor Linda: gambar (/design) dan reels (/motlab + konektor ElevenLabs)",
     prompt: PROMPT_LINDA_IMAGE,
-    extraPrompts: [{ label: "Prompt reels (Claude)", prompt: PROMPT_LINDA_REELS }],
+    extraPrompts: [{ label: "Prompt reels (/motlab + ElevenLabs)", prompt: PROMPT_LINDA_REELS }],
     times: "08:00, 10:00, 12:00, 14:00, 16:00, 18:00, 22:00",
   },
   kechlyn: {
     schedule: "Tiap 2 jam, 1 jam setelah Linda",
-    app: "Claude (dengan kemampuan melihat gambar)",
+    app: "Claude Code routine (melihat gambar dan keyframe), dipicu API trigger",
     prompt: PROMPT_KECHLYN,
     times: "09:00, 11:00, 13:00, 15:00, 17:00, 19:00, 23:00",
   },

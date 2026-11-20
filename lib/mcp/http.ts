@@ -1,9 +1,9 @@
 /**
  * Studio MCP over Streamable HTTP (stateless), shared by the shared URL /api/mcp and the
  * per-agent URLs /api/mcp/<slug>. Two ways in, both `Authorization: Bearer`:
- * - OAuth 2.1 access tokens (Claude.ai, ChatGPT, Gemini, Grok apps), bound to one agent at
+ * - OAuth 2.1 access tokens (Claude.ai / Claude Code routines, Grok), bound to one agent at
  *   consent and to the exact URL they were issued for (RFC 8707 audience);
- * - static agent tokens (clients that let you set headers: Claude Code, Gemini CLI, xAI API).
+ * - static agent tokens (clients that let you set headers: Claude Code CLI, xAI API).
  * On a per-agent URL the token must belong to that agent. The agent decides which tools exist.
  */
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
