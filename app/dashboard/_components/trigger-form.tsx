@@ -20,15 +20,15 @@ export function TriggerForm({ role, name, trigger, defaultTimes }: { role: strin
       <input type="hidden" name="role" value={role} />
       <div className="flex flex-col gap-1.5">
         <label htmlFor={id("url")} className="text-xs text-subtle">
-          URL webhook (mis. pemicu webhook Grok Automation)
+          URL pemicu (webhook Grok Automation, atau Fire URL routine Claude Code)
         </label>
         <input id={id("url")} name="url" type="url" required defaultValue={trigger?.url ?? ""} placeholder="https://…" autoComplete="off" spellCheck={false} className={input} />
       </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor={id("secret")} className="text-xs text-subtle">
-          Signing secret {trigger?.hasSecret ? "(tersimpan; kosongkan untuk tetap memakai yang lama)" : "(whsec_…, opsional)"}
+          Secret / token {trigger?.hasSecret ? "(tersimpan; kosongkan untuk tetap memakai yang lama)" : "(Grok: whsec_…, routine Claude: sk-ant-oat01-…)"}
         </label>
-        <input id={id("secret")} name="secret" type="password" defaultValue="" placeholder={trigger?.hasSecret ? "••••••••" : "whsec_…"} autoComplete="off" spellCheck={false} className={input} />
+        <input id={id("secret")} name="secret" type="password" defaultValue="" placeholder={trigger?.hasSecret ? "••••••••" : "whsec_… atau sk-ant-oat01-…"} autoComplete="off" spellCheck={false} className={input} />
         {trigger?.hasSecret && (
           <label className="flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" name="clear_secret" className="h-3.5 w-3.5 accent-[var(--accent)]" /> Hapus secret tersimpan

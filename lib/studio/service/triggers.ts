@@ -13,7 +13,7 @@ import { mcpResourceUrl, slugForRole } from "@/lib/oauth/core";
 import { openSecret, sealSecret } from "@/lib/secret-box";
 import { ROLE_QUEUES, type PipelineRole } from "../config";
 import { studioToday } from "../research-periods";
-import { dueRunTime, isValidTriggerUrl, parseTimes, studioClock, webhookHeaders } from "../triggers";
+import { buildTriggerRequest, dueRunTime, isValidTriggerUrl, parseTimes, studioClock } from "../triggers";
 import { StudioError } from "./core";
 import { getResearchSchedule } from "./research-insights";
 
@@ -52,7 +52,7 @@ async function send(t: Trigger, runKey: string, scheduledFor: string | null, due
 
   const origin = envValue("STUDIO_PUBLIC_URL")?.replace(/\/+$/, "") ?? null;
   const slug = slugForRole(t.role);
-  const body = JSON.stringify({
+  const payload = {
     type: "studio.agent_run",
     agent: { role: t.role, name: await agentName(t.role as TriggerRole) },
     run: runKey,
@@ -61,16 +61,20 @@ async function send(t: Trigger, runKey: string, scheduledFor: string | null, due
     mcpUrl: origin && slug ? mcpResourceUrl(origin, slug) : null,
     instruction: "Jalankan satu shift sekarang: panggil get_playbook lalu kerjakan semua yang ada di daftar due. Akhiri dengan ringkasan singkat.",
     due,
-  });
+  };
   let status: "sent" | "failed" = "failed";
   let httpStatus: number | null = null;
   let detail = "";
   try {
     const secret = t.secretEnc ? openSecret(t.secretEnc) : null;
-    const res = await fetch(t.url, { method: "POST", headers: webhookHeaders(secret, `msg_${run.id}`, body, now), body, signal: AbortSignal.timeout(15_000) });
+    const req = buildTriggerRequest(t.url, secret, `msg_${run.id}`, payload, now);
+    const res = await fetch(t.url, { method: "POST", headers: req.headers, body: req.body, signal: AbortSignal.timeout(15_000) });
     httpStatus = res.status;
     status = res.ok ? "sent" : "failed";
-    detail = res.ok ? `Diterima (${res.status})` : `Ditolak ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+    const text = await res.text().catch(() => "");
+    // Claude routines answer with the new session's URL; keep it so the run can be opened.
+    const session = res.ok && req.kind === "claude_routine" ? (JSON.parse(text || "{}") as { claude_code_session_url?: string }).claude_code_session_url : null;
+    detail = res.ok ? `Diterima (${res.status})${session ? ` · ${session}` : ""}` : `Ditolak ${res.status}: ${text.slice(0, 300)}`;
   } catch (e) {
     detail = e instanceof Error ? e.message : String(e);
   }

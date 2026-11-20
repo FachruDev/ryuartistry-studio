@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { expect, test } from "bun:test";
-import { dueRunTime, isValidTriggerUrl, parseTimes, signWebhook, studioClock, webhookHeaders } from "./triggers";
+import { buildTriggerRequest, dueRunTime, isClaudeRoutineUrl, isValidTriggerUrl, parseTimes, signWebhook, studioClock, webhookHeaders } from "./triggers";
 
 test("run times are parsed, sorted and validated", () => {
   expect(parseTimes("18:30, 06:30 12:30;06:30")).toEqual(["06:30", "12:30", "18:30"]);
@@ -40,4 +40,23 @@ test("trigger URLs must be https", () => {
   expect(isValidTriggerUrl("http://localhost:3000/x")).toBe(true);
   expect(isValidTriggerUrl("http://example.com/x")).toBe(false);
   expect(isValidTriggerUrl("nope")).toBe(false);
+});
+
+test("Claude Code routine URLs get a bearer token and a text body", () => {
+  const url = "https://api.anthropic.com/v1/claude_code/routines/trig_01ABC/fire";
+  expect(isClaudeRoutineUrl(url)).toBe(true);
+  expect(isClaudeRoutineUrl("https://api.anthropic.com/v1/messages")).toBe(false);
+  expect(isClaudeRoutineUrl("https://grok.com/webhook/automation/x")).toBe(false);
+
+  const r = buildTriggerRequest(url, "sk-ant-oat01-test", "msg_1", { due: [1] });
+  expect(r.kind).toBe("claude_routine");
+  expect(r.headers.Authorization).toBe("Bearer sk-ant-oat01-test");
+  expect(r.headers["anthropic-version"]).toBe("2023-06-01");
+  expect(JSON.parse(JSON.parse(r.body).text)).toEqual({ due: [1] });
+  expect(() => buildTriggerRequest(url, null, "msg_1", {})).toThrow("token");
+
+  const w = buildTriggerRequest("https://grok.com/webhook/automation/x", "whsec_c2VjcmV0", "msg_1", { a: 1 });
+  expect(w.kind).toBe("webhook");
+  expect(w.headers["webhook-signature"]).toStartWith("v1,");
+  expect(JSON.parse(w.body)).toEqual({ a: 1 });
 });

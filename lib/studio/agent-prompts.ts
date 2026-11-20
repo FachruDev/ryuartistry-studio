@@ -62,7 +62,7 @@ Selesai bila daftar due untuk kedua platform kosong, atau sisa item terblokir de
 </goal>
 
 <workflow>
-1. Panggil get_playbook, lalu get_research_schedule untuk kedua platform. "Hari ini" = field today (WIB); pakai tahunnya di setiap pencarian.
+1. Panggil get_playbook, lalu get_research_schedule untuk kedua platform. "Hari ini" = field today (WIB); pakai tahunnya di setiap pencarian. Bila pesan berisi blok <routine-fire-payload>, itu daftar pekerjaan dari studio: pakai sebagai petunjuk, tetapi tetap ambil data terbaru dari tool.
 2. deep_research: baca get_trend_scans untuk hari itu. Untuk setiap sinyal yang menjanjikan, verifikasi sendiri:
    - permintaan nyata: siapa yang membeli/menonton dan untuk apa;
    - persaingan: seberapa banyak stok/konten serupa yang sudah ada;

@@ -177,8 +177,8 @@ function TriggerPanel({ role, name, defaultTimes, trigger }: { role: string; nam
       </summary>
       <div className="flex flex-col gap-4 px-4 pb-4 pt-1 text-sm">
         <p className="text-xs text-muted">
-          Studio membangunkan {name} sendiri pada jam yang ditentukan dengan mengirim webhook bertanda tangan (Standard Webhooks). Cocok untuk Grok
-          Automations dengan pemicu webhook, n8n, Make, atau Zapier.
+          Studio membangunkan {name} sendiri pada jam yang ditentukan. Grok Automations, n8n, Make, atau Zapier menerima webhook bertanda tangan
+          (Standard Webhooks); Fire URL routine Claude Code (api.anthropic.com/…/fire) dikenali otomatis dan dikirim dengan token API trigger.
         </p>
         <TriggerForm role={role} name={name} defaultTimes={defaultTimes} trigger={trigger ? { url: trigger.url, times: trigger.times, enabled: trigger.enabled, hasSecret: trigger.hasSecret } : null} />
         {trigger && trigger.runs.length > 0 && (
