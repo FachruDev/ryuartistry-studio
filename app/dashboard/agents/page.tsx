@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Suspense } from "react";
 import { AGENT_KITS, CRON_HINT } from "@/lib/studio/agent-kit";
 import { agentsOverview, lastTickAt } from "@/lib/studio/service";
+import { mcpResourceUrl, slugForRole } from "@/lib/oauth/core";
 import { publicOrigin } from "@/lib/oauth/http";
 import { listConnections } from "@/lib/oauth/service";
 import { RotateTokenForm, RunTickButton } from "../_components/automation-forms";
@@ -100,12 +101,15 @@ async function AgentsData() {
                         <span className="text-text">Aplikasi:</span> {kit.app}
                       </p>
                       <div>
+                        <p className="mb-1.5 text-xs text-subtle">URL konektor khusus {a.name} (tambahkan sebagai konektor terpisah di aplikasi AI)</p>
+                        <CopyText text={mcpResourceUrl(origin, slugForRole(a.role))} label={`URL MCP untuk ${a.name}`} copyLabel="Salin URL" rows={1} />
+                      </div>
+                      <div>
                         <p className="mb-1.5 text-xs text-subtle">Koneksi OAuth</p>
                         <AgentConnections connections={connections.filter((c) => c.agentId === a.id)} />
                       </div>
                       <div>
-                        <p className="mb-1.5 text-xs text-subtle">Atau header (Claude Code, Gemini CLI, API xAI): URL ini + Authorization: Bearer &lt;token {a.name}&gt;</p>
-                        <CopyText text={mcpUrl} label={`URL MCP untuk ${a.name}`} copyLabel="Salin URL" rows={1} />
+                        <p className="text-xs text-subtle">Atau header (Claude Code, Gemini CLI, API xAI): URL di atas + Authorization: Bearer &lt;token {a.name}&gt;</p>
                       </div>
                       <div>
                         <p className="mb-1.5 text-xs text-subtle">Prompt terjadwal</p>

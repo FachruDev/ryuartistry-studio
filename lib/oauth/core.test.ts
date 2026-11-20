@@ -5,6 +5,9 @@ import {
   isMetadataDocumentClientId,
   isSafeMetadataHost,
   isValidRedirectUri,
+  parseResource,
+  roleForSlug,
+  slugForRole,
   protectedResourceMetadata,
   resourceMatches,
   validateMetadataDocument,
@@ -85,4 +88,16 @@ test("resource indicator must be our MCP endpoint", () => {
   expect(resourceMatches(undefined, origin)).toBe(true);
   expect(resourceMatches(`${origin}/api/mcp/`, origin)).toBe(true);
   expect(resourceMatches("https://other.example/api/mcp", origin)).toBe(false);
+});
+
+test("per-agent MCP URLs", () => {
+  expect(parseResource(undefined, origin)).toEqual({ resource: `${origin}/api/mcp`, role: null });
+  expect(parseResource(`${origin}/api/mcp/lukas`, origin)).toEqual({ resource: `${origin}/api/mcp/lukas`, role: "lukas" });
+  expect(parseResource(`${origin}/api/mcp/rina-scout/`, origin)).toEqual({ resource: `${origin}/api/mcp/rina-scout`, role: "rina_scout" });
+  expect(parseResource(`${origin}/api/mcp/admin`, origin)).toBeNull();
+  expect(parseResource(`${origin}/api/mcp/lukas/x`, origin)).toBeNull();
+  expect(parseResource(`${origin}/api/mcp/constructor`, origin)).toBeNull();
+  expect(roleForSlug("rina_scout")).toBeNull();
+  expect(slugForRole("rina_scout")).toBe("rina-scout");
+  expect(protectedResourceMetadata(origin, "lukas").resource).toBe(`${origin}/api/mcp/lukas`);
 });

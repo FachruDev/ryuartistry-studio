@@ -80,7 +80,12 @@ bun --env-file=.env --env-file=.env.local --env-file=.env.agents.local scripts/s
 
 ## Menghubungkan agen
 
-URL MCP: `https://<domain>/api/mcp`. Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
+URL MCP:
+
+- **Per agen** (disarankan): `https://<domain>/api/mcp/<agen>` dengan `<agen>` = `rina-scout`, `rina`, `shion`, `lukas`, `linda`, `kechlyn`. Aplikasi seperti Claude hanya mengizinkan satu konektor per URL, jadi URL per agen memungkinkan satu aplikasi memegang beberapa agen. URL menentukan agennya: layar persetujuan hanya menawarkan agen itu, token OAuth hanya berlaku di URL itu, dan token statis agen lain ditolak.
+- **Bersama**: `https://<domain>/api/mcp`. Agen dipilih di layar persetujuan (atau ditentukan token statis).
+
+Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
 
 ### 1. OAuth 2.1 — untuk aplikasi chat (Claude.ai, ChatGPT, Gemini app, Grok)
 
@@ -89,7 +94,7 @@ Tempel URL MCP sebagai konektor custom; biarkan pengaturan OAuth kosong. Alurnya
 1. Server menjawab `401` dengan `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/api/mcp"`.
 2. Aplikasi membaca metadata resource (RFC 9728) dan authorization server (`/.well-known/oauth-authorization-server`, RFC 8414).
 3. Aplikasi mendaftar sendiri lewat `/oauth/register` (Dynamic Client Registration, RFC 7591) atau memakai Client ID Metadata Document (client_id berupa URL HTTPS).
-4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu **memilih agen** yang diwakili aplikasi itu (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
+4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu menyetujui agen dari URL konektor (URL bersama: **memilih agen**) (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
 5. Token: PKCE S256 wajib; access token 1 jam, refresh token 30 hari dan **berotasi**; token terikat ke URL MCP ini (RFC 8707). Refresh token yang dipakai ulang atau kode yang dipakai dua kali mencabut seluruh koneksi itu.
 6. Cabut kapan saja: halaman **Agen** → kit koneksi agen → tombol **Cabut** (atau aplikasi memanggil `/oauth/revoke`).
 

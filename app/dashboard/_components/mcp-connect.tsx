@@ -6,10 +6,10 @@ import { Badge, Panel, Section, fmtDate } from "./ui";
 type Connection = Awaited<ReturnType<typeof listConnections>>[number];
 
 const OAUTH_APPS = [
-  { app: "Claude.ai / Claude Desktop", steps: "Settings → Connectors → Add custom connector. Tempel URL MCP, biarkan Advanced settings kosong (pendaftaran otomatis)." },
-  { app: "ChatGPT", steps: "Plugins / Developer mode → Add custom MCP server. Tempel URL MCP, pilih autentikasi OAuth." },
-  { app: "Gemini app", steps: "Settings → Connected apps → Custom apps (saat ini terbatas akun pribadi di AS). Tempel URL MCP." },
-  { app: "Grok (grok.com)", steps: "grok.com/connectors → New Connector → Custom. Tempel URL MCP lalu selesaikan sign-in." },
+  { app: "Claude.ai / Claude Desktop", steps: "Settings → Connectors → Add custom connector. Tempel URL khusus agen (mis. …/api/mcp/lukas), biarkan Advanced settings kosong. Satu konektor per agen." },
+  { app: "ChatGPT", steps: "Plugins / Developer mode → Add custom MCP server. Tempel URL khusus agen, pilih autentikasi OAuth." },
+  { app: "Gemini app", steps: "Settings → Connected apps → Custom apps (saat ini terbatas akun pribadi di AS). Tempel URL khusus agen." },
+  { app: "Grok (grok.com)", steps: "grok.com/connectors → New Connector → Custom. Tempel URL khusus agen lalu selesaikan sign-in." },
 ];
 
 const HEADER_APPS = "Claude Code, Gemini CLI, dan API xAI (Remote MCP) bisa memakai header Authorization: Bearer <token agen> dari kit koneksi tiap agen.";
@@ -21,12 +21,13 @@ export function ConnectGuide({ mcpUrl, delay }: { mcpUrl: string; delay?: number
       <Panel coreClassName="grid gap-6 p-6 md:grid-cols-12">
         <div className="flex flex-col gap-4 md:col-span-5">
           <p className="text-sm text-muted">
-            Aplikasi AI terhubung lewat <strong className="text-text">OAuth 2.1</strong>: kamu login ke studio, lalu memilih agen yang diwakili aplikasi
-            itu. Token berlaku 1 jam, diperbarui otomatis, terikat ke URL ini, dan bisa dicabut di bawah.
+            Aplikasi AI terhubung lewat <strong className="text-text">OAuth 2.1</strong>. Setiap agen punya URL sendiri (di kit koneksi tiap agen),
+            jadi satu aplikasi bisa memegang beberapa agen sebagai konektor terpisah. URL menentukan agennya; kamu tinggal login dan menyetujui. Token
+            berlaku 1 jam, diperbarui otomatis, terikat ke URL itu, dan bisa dicabut kapan saja.
           </p>
           <div>
-            <p className="mb-1.5 text-xs text-subtle">URL server MCP</p>
-            <CopyText text={mcpUrl} label="URL server MCP" copyLabel="Salin URL" rows={1} />
+            <p className="mb-1.5 text-xs text-subtle">URL bersama (pilih agen saat menyetujui)</p>
+            <CopyText text={mcpUrl} label="URL server MCP bersama" copyLabel="Salin URL" rows={1} />
           </div>
           <p className="text-xs text-subtle">{HEADER_APPS}</p>
         </div>

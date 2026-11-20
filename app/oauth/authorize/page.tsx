@@ -75,7 +75,21 @@ async function Consent({ searchParams }: { searchParams: PageProps<"/oauth/autho
     );
   }
 
-  const team = await db.select().from(agents).where(and(eq(agents.active, true), ne(agents.role, "admin"))).orderBy(agents.createdAt);
+  const team = await db
+    .select()
+    .from(agents)
+    .where(and(eq(agents.active, true), check.lockedRole ? eq(agents.role, check.lockedRole) : ne(agents.role, "admin")))
+    .orderBy(agents.createdAt);
+  if (!team.length) {
+    return (
+      <Card>
+        <h1 className="text-2xl font-semibold tracking-tight">Agen tidak tersedia</h1>
+        <p role="alert" className="mt-3 text-sm text-danger">
+          Agen untuk URL konektor ini belum dibuat atau sedang nonaktif. Aktifkan di halaman Agen, lalu hubungkan ulang.
+        </p>
+      </Card>
+    );
+  }
   const redirectHost = new URL(check.redirectUri).host;
 
   return (
@@ -87,8 +101,9 @@ async function Consent({ searchParams }: { searchParams: PageProps<"/oauth/autho
         <span className="text-accent">{check.client.name}</span> ingin terhubung ke studio
       </h1>
       <p className="mt-3 text-sm leading-relaxed text-muted">
-        Aplikasi ini akan memanggil tools studio <strong className="text-text">sebagai agen yang kamu pilih</strong>, dan hanya bisa memakai tools milik
-        agen itu. Token berlaku 1 jam dan diperbarui otomatis; kamu bisa mencabutnya kapan saja di halaman Agen.
+        Aplikasi ini akan memanggil tools studio{" "}
+        <strong className="text-text">{check.lockedRole ? `sebagai ${team[0].name}` : "sebagai agen yang kamu pilih"}</strong>, dan hanya bisa
+        memakai tools milik agen itu. Token berlaku 1 jam dan diperbarui otomatis; kamu bisa mencabutnya kapan saja di halaman Agen.
       </p>
       <dl className="mt-5 grid gap-2 rounded-2xl bg-core-muted p-4 text-xs ring-1 ring-hairline">
         <div className="flex justify-between gap-4">
@@ -106,7 +121,7 @@ async function Consent({ searchParams }: { searchParams: PageProps<"/oauth/autho
       <form action={decideAuthorization} className="mt-7 flex flex-col gap-5">
         {Object.entries(params).map(([k, v]) => (v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-medium">Hubungkan sebagai agen</legend>
+          <legend className="mb-2 text-sm font-medium">{check.lockedRole ? "Agen untuk URL konektor ini" : "Hubungkan sebagai agen"}</legend>
           {team.map((a, i) => (
             <label key={a.id} className="flex cursor-pointer items-center gap-3 rounded-2xl px-4 py-3 ring-1 ring-hairline transition-colors duration-300 hover:bg-shell has-[:checked]:bg-accent-soft has-[:checked]:ring-accent">
               <input type="radio" name="agentId" value={a.id} required defaultChecked={i === 0} className="h-4 w-4 accent-[var(--accent)]" />

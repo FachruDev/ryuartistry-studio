@@ -3,6 +3,7 @@
  * and client-registration validation. No I/O, so it is unit-tested directly.
  */
 import { createHash, randomBytes } from "node:crypto";
+import type { AgentRole } from "@/lib/db/schema";
 
 export const MCP_SCOPE = "mcp";
 export const ACCESS_TOKEN_TTL_S = 60 * 60; // 1 hour
@@ -17,18 +18,42 @@ export function randomToken(prefix: string): string {
   return `${prefix}_${b64url(randomBytes(32))}`;
 }
 
-export function mcpResourceUrl(origin: string): string {
-  return `${origin}/api/mcp`;
+/**
+ * Each agent also has its own MCP URL (/api/mcp/<slug>). Chat apps allow one connector per URL,
+ * so per-agent URLs let one app (e.g. Claude) hold several agents, and the URL fixes which agent
+ * the connector acts as. /api/mcp stays as the shared URL where the operator picks the agent.
+ */
+export const AGENT_SLUGS = {
+  "rina-scout": "rina_scout",
+  rina: "rina",
+  shion: "shion",
+  lukas: "lukas",
+  linda: "linda",
+  kechlyn: "kechlyn",
+} as const satisfies Record<string, Exclude<AgentRole, "admin">>;
+export type AgentSlug = keyof typeof AGENT_SLUGS;
+export type SlugRole = (typeof AGENT_SLUGS)[AgentSlug];
+
+export function roleForSlug(slug: string | null | undefined): SlugRole | null {
+  return slug && Object.hasOwn(AGENT_SLUGS, slug) ? AGENT_SLUGS[slug as AgentSlug] : null;
 }
 
-/** RFC 9728 protected resource metadata. */
-export function protectedResourceMetadata(origin: string) {
+export function slugForRole(role: string): AgentSlug | null {
+  return (Object.keys(AGENT_SLUGS) as AgentSlug[]).find((s) => AGENT_SLUGS[s] === role) ?? null;
+}
+
+export function mcpResourceUrl(origin: string, slug?: AgentSlug | null): string {
+  return slug ? `${origin}/api/mcp/${slug}` : `${origin}/api/mcp`;
+}
+
+/** RFC 9728 protected resource metadata, for the shared URL or one agent's URL. */
+export function protectedResourceMetadata(origin: string, slug?: AgentSlug | null) {
   return {
-    resource: mcpResourceUrl(origin),
+    resource: mcpResourceUrl(origin, slug),
     authorization_servers: [origin],
     scopes_supported: [MCP_SCOPE],
     bearer_methods_supported: ["header"],
-    resource_name: "Ryuartistry Studio MCP",
+    resource_name: slug ? `Ryuartistry Studio MCP (${slug})` : "Ryuartistry Studio MCP",
   };
 }
 
@@ -138,7 +163,23 @@ export function validateMetadataDocument(doc: unknown, url: string): { ok: true;
 }
 
 /** Requested resource (RFC 8707) must be our MCP endpoint when given. */
+/**
+ * Which of our MCP URLs a resource indicator (RFC 8707) names: the shared one (role null) or one
+ * agent's (role set). Missing = the shared URL. Anything else is not ours.
+ */
+export function parseResource(
+  requested: string | null | undefined,
+  origin: string,
+): { resource: string; role: SlugRole | null } | null {
+  if (!requested) return { resource: mcpResourceUrl(origin), role: null };
+  const r = requested.replace(/\/+$/, "");
+  if (r === mcpResourceUrl(origin)) return { resource: r, role: null };
+  const prefix = `${mcpResourceUrl(origin)}/`;
+  if (!r.startsWith(prefix)) return null;
+  const role = roleForSlug(r.slice(prefix.length));
+  return role ? { resource: r, role } : null;
+}
+
 export function resourceMatches(requested: string | null | undefined, origin: string): boolean {
-  if (!requested) return true;
-  return requested.replace(/\/+$/, "") === mcpResourceUrl(origin);
+  return parseResource(requested, origin) !== null;
 }

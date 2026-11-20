@@ -103,6 +103,35 @@ async function run() {
   expect(rev.status === 200 && afterRevoke.status === 401, "revocation");
   step("endpoint revoke mencabut akses dan refresh sekaligus");
 
+  // 9. Per-agent URL: one connector per agent, the URL fixes the agent
+  const post = (path: string, token?: string) =>
+    fetch(new URL(path, base), {
+      method: "POST",
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+  const anonLukas = await post("/api/mcp/lukas");
+  const lukasMeta = (anonLukas.headers.get("www-authenticate") ?? "").match(/resource_metadata="([^"]+)"/)?.[1];
+  expect(anonLukas.status === 401 && lukasMeta && lukasMeta.endsWith("/.well-known/oauth-protected-resource/api/mcp/lukas"), `per-agent 401: ${lukasMeta}`);
+  const prmLukas = await (await fetch(lukasMeta)).json();
+  expect(prmLukas.resource.endsWith("/api/mcp/lukas"), JSON.stringify(prmLukas));
+  expect((await post("/api/mcp/nobody")).status === 404, "unknown agent URL must 404");
+
+  const [lukas] = await db.select().from(agents).where(eq(agents.role, "lukas"));
+  const lukasAuthUrl = authUrl.replace(encodeURIComponent(prm.resource), encodeURIComponent(prmLukas.resource));
+  const lockedConsent = await (await fetch(lukasAuthUrl, { headers: { Cookie: await operatorCookie() } })).text();
+  expect(lockedConsent.includes(`value="${lukas.id}"`) && !lockedConsent.includes(`value="${rina.id}"`), "per-agent consent must offer only that agent");
+
+  const codeL = await createAuthorizationCode({ clientId: reg.client_id, userId: admin.id, agentId: lukas.id, redirectUri: "https://example.com/callback", codeChallenge: challenge, resource: prmLukas.resource });
+  const tokL = await (await fetch(as.token_endpoint, form({ grant_type: "authorization_code", code: codeL, redirect_uri: "https://example.com/callback", client_id: reg.client_id, code_verifier: verifier }))).json();
+  const [onLukas, onShared, onRina] = await Promise.all([post("/api/mcp/lukas", tokL.access_token), post("/api/mcp", tokL.access_token), post("/api/mcp/rina", tokL.access_token)]);
+  expect(onLukas.status === 200 && onShared.status === 401 && onRina.status === 401, `audience: ${onLukas.status}/${onShared.status}/${onRina.status}`);
+  const lukasTools = (await onLukas.json()).result.tools.map((t: { name: string }) => t.name);
+  expect(lukasTools.includes("submit_idea_review") && !lukasTools.includes("submit_research_session"), lukasTools.join(","));
+  const rinaStatic = process.env.STUDIO_TOKEN_RINA;
+  if (rinaStatic) expect((await post("/api/mcp/lukas", rinaStatic)).status === 401 && (await post("/api/mcp/rina", rinaStatic)).status === 200, "static token must match the URL's agent");
+  step(`URL per agen: /api/mcp/lukas hanya menawarkan Lukas, tokennya hanya berlaku di URL itu${rinaStatic ? ", token statis Rina ditolak di URL Lukas" : ""}`);
+
   console.log("\nOAUTH SMOKE TEST PASSED");
 }
 
