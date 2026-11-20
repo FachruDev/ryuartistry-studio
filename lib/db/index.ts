@@ -5,8 +5,9 @@ import * as authSchema from "./schema-auth";
 import * as automationSchema from "./schema-automation";
 import * as oauthSchema from "./schema-oauth";
 import * as scoutSchema from "./schema-scout";
+import * as triggerSchema from "./schema-triggers";
 
-const schema = { ...coreSchema, ...automationSchema, ...authSchema, ...oauthSchema, ...scoutSchema };
+const schema = { ...coreSchema, ...automationSchema, ...authSchema, ...oauthSchema, ...scoutSchema, ...triggerSchema };
 
 function createClient() {
   const url = process.env.DATABASE_URL;

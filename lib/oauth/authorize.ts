@@ -1,5 +1,5 @@
 /** Validation of an /oauth/authorize request, shared by the consent page and its server action. */
-import { mcpResourceUrl, resourceMatches } from "./core";
+import { parseResource, type SlugRole } from "./core";
 import { OAuthError, resolveClient, type OAuthClient } from "./service";
 
 export type AuthorizeParams = {
@@ -18,7 +18,16 @@ export type AuthorizeCheck =
   | { kind: "fatal"; message: string }
   /** redirect_uri is trusted: send the error back to the client. */
   | { kind: "redirect-error"; url: string }
-  | { kind: "ok"; client: OAuthClient; redirectUri: string; codeChallenge: string; state?: string; resource: string };
+  | {
+      kind: "ok";
+      client: OAuthClient;
+      redirectUri: string;
+      codeChallenge: string;
+      state?: string;
+      resource: string;
+      /** Set when the client connected through a per-agent URL: only this agent may be approved. */
+      lockedRole: SlugRole | null;
+    };
 
 export function errorRedirect(redirectUri: string, error: string, description: string, state?: string): string {
   const u = new URL(redirectUri);
@@ -46,13 +55,15 @@ export async function checkAuthorizeRequest(p: AuthorizeParams, origin: string):
   const back = (error: string, d: string): AuthorizeCheck => ({ kind: "redirect-error", url: errorRedirect(p.redirect_uri!, error, d, p.state) });
   if (p.response_type !== "code") return back("unsupported_response_type", "Only response_type=code is supported");
   if (!p.code_challenge || p.code_challenge_method !== "S256") return back("invalid_request", "PKCE with code_challenge_method=S256 is required");
-  if (!resourceMatches(p.resource, origin)) return back("invalid_target", "resource must be this server's MCP endpoint");
+  const target = parseResource(p.resource, origin);
+  if (!target) return back("invalid_target", "resource must be one of this server's MCP endpoints");
   return {
     kind: "ok",
     client,
     redirectUri: p.redirect_uri,
     codeChallenge: p.code_challenge,
     state: p.state,
-    resource: mcpResourceUrl(origin),
+    resource: target.resource,
+    lockedRole: target.role,
   };
 }

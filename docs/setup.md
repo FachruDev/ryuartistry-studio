@@ -80,7 +80,12 @@ bun --env-file=.env --env-file=.env.local --env-file=.env.agents.local scripts/s
 
 ## Menghubungkan agen
 
-URL MCP: `https://<domain>/api/mcp`. Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
+URL MCP:
+
+- **Per agen** (disarankan): `https://<domain>/api/mcp/<agen>` dengan `<agen>` = `rina-scout`, `rina`, `shion`, `lukas`, `linda`, `kechlyn`. Aplikasi seperti Claude hanya mengizinkan satu konektor per URL, jadi URL per agen memungkinkan satu aplikasi memegang beberapa agen. URL menentukan agennya: layar persetujuan hanya menawarkan agen itu, token OAuth hanya berlaku di URL itu, dan token statis agen lain ditolak.
+- **Bersama**: `https://<domain>/api/mcp`. Agen dipilih di layar persetujuan (atau ditentukan token statis).
+
+Ada dua cara masuk, keduanya lewat HTTPS dan `Authorization: Bearer`:
 
 ### 1. OAuth 2.1 — untuk aplikasi chat (Claude.ai, ChatGPT, Gemini app, Grok)
 
@@ -89,7 +94,7 @@ Tempel URL MCP sebagai konektor custom; biarkan pengaturan OAuth kosong. Alurnya
 1. Server menjawab `401` dengan `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/api/mcp"`.
 2. Aplikasi membaca metadata resource (RFC 9728) dan authorization server (`/.well-known/oauth-authorization-server`, RFC 8414).
 3. Aplikasi mendaftar sendiri lewat `/oauth/register` (Dynamic Client Registration, RFC 7591) atau memakai Client ID Metadata Document (client_id berupa URL HTTPS).
-4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu **memilih agen** yang diwakili aplikasi itu (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
+4. Browser dibuka ke `/oauth/authorize`: kamu login ke studio, lalu menyetujui agen dari URL konektor (URL bersama: **memilih agen**) (mis. Grok → Rina-Scout, Claude.ai → Rina, ChatGPT → Shion). Aplikasi hanya melihat tools agen tersebut.
 5. Token: PKCE S256 wajib; access token 1 jam, refresh token 30 hari dan **berotasi**; token terikat ke URL MCP ini (RFC 8707). Refresh token yang dipakai ulang atau kode yang dipakai dua kali mencabut seluruh koneksi itu.
 6. Cabut kapan saja: halaman **Agen** → kit koneksi agen → tombol **Cabut** (atau aplikasi memanggil `/oauth/revoke`).
 
@@ -179,6 +184,25 @@ Otomasi tetap berbasis MCP: setiap agen berjalan sebagai **scheduled task** di a
    - batas per job: `report_cost` menghentikan job (`halted`) yang melewati batas dan membuat notifikasi kritis.
 4. **Publikasi otomatis** per platform: hanya berlaku bila sakelar aktif **dan** syarat kalibrasi tercapai saat itu (≥ 50 keputusan manusia, ≥ 90% disetujui, ≥ 80% diterima platform). Item yang disetujui otomatis ditandai `autoApproved` dan tidak dihitung sebagai keputusan manusia di statistik kalibrasi. Bila kalibrasi turun, approval manual otomatis berlaku lagi.
 5. **Cron** `GET /api/cron/tick` dengan `Authorization: Bearer <CRON_SECRET>`, tiap 15–30 menit. Mengecek: job macet di tahap agen, agen tidak aktif, slot riset terlewat, anggaran habis, siklus berhenti, kalibrasi siap mode otomatis, dan approval yang menunggu lebih dari sehari. Setiap masalah jadi notifikasi sekali saja (kunci dedupe), plus webhook HTTPS opsional (Discord/Slack) untuk peringatan dan kritis. Tombol "Jalankan Pengecekan Sekarang" di halaman Agen melakukan hal yang sama.
+
+## Pemicu agen (webhook)
+
+Selain jadwal di dalam aplikasi AI, studio bisa membangunkan agen sendiri. Atur di halaman **Agen** → kartu agen → **Pemicu otomatis**: URL webhook, signing secret (opsional), dan jam jalan (WIB).
+
+- Cron tick (`/api/cron/tick`, tiap 15–30 menit) mengecek jam jalan tiap agen. Pada jam itu studio mengirim `POST` JSON bertanda tangan [Standard Webhooks](https://www.standardwebhooks.com/) (`webhook-id`, `webhook-timestamp`, `webhook-signature: v1,<HMAC-SHA256>`).
+- Agen hanya dibangunkan bila ada pekerjaan (jadwal riset untuk Rina-Scout/Rina, antrian job untuk yang lain). Setiap jam jalan dikirim paling banyak sekali; jam yang terlewat lebih dari 3 jam tidak dikirim.
+- Isi payload: `agent`, `run`, `day`, `scheduledFor`, `mcpUrl` (URL MCP khusus agen, butuh `STUDIO_PUBLIC_URL`), `instruction`, dan `due` (daftar pekerjaan).
+- Secret disimpan terenkripsi (AES-256-GCM, kunci dari `STUDIO_SESSION_SECRET`). Mengganti `STUDIO_SESSION_SECRET` membuat secret harus diisi ulang.
+- Pengiriman gagal muncul sebagai notifikasi. Riwayat 6 pengiriman terakhir ada di kartu agen; **Kirim Uji** mengirim satu pemicu sekarang.
+
+**Grok (Rina-Scout).** Di grok.com buat Automation dengan konektor MCP `…/api/mcp/rina-scout` dan prompt dari kit Rina-Scout, lalu tambahkan pemicu webhook. Salin URL webhook dan secret `whsec_…` ke form pemicu, jam `06:30, 12:30, 18:30`. Jadwal internal Automation tidak perlu diaktifkan.
+
+**Aplikasi lain.** ChatGPT dan Gemini (gemini.google.com) belum bisa dipicu dari luar (per November 2026). Claude.ai juga tidak. Untuk agen-agen itu, pemicu webhook bisa diarahkan ke n8n/Make/Zapier yang memanggil API model, atau tetap memakai jadwal di aplikasinya.
+
+## Alur harian dan hasil kerja
+
+- **Alur harian** (`/dashboard/flow`): tahap per hari dari pindai tren sampai terbit, dengan status selesai/berjalan/terhenti/menunggu, plus kalender sebulan (warna = hasil hari itu, garis = tahap terjauh, angka = siklus terbit/dibuka). Reels punya tahap storyboard tambahan.
+- **Hasil kerja** (`/dashboard/outputs`): output tiap agen (pindaian, riset, laporan, ide, review, aset dengan pratinjau, metadata). Pilih satu agen, atau beberapa untuk dibandingkan per kolom; ada filter platform dan rentang 1/7/30 hari.
 
 ## Dashboard
 

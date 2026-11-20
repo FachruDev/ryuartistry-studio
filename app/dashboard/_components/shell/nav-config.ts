@@ -11,7 +11,11 @@ export type NavItem = {
 export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: "Studio",
-    items: [{ href: "/dashboard", label: "Ringkasan", hint: "Keputusan dan status hari ini", count: "approvals" }],
+    items: [
+      { href: "/dashboard", label: "Ringkasan", hint: "Keputusan dan status hari ini", count: "approvals" },
+      { href: "/dashboard/flow", label: "Alur harian", hint: "Riset sampai terbit, per hari dan per bulan" },
+      { href: "/dashboard/outputs", label: "Hasil kerja", hint: "Output tiap agen, satu per satu atau sekaligus" },
+    ],
   },
   {
     label: "Produksi",

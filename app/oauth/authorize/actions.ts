@@ -33,6 +33,8 @@ export async function decideAuthorization(formData: FormData): Promise<void> {
     .from(agents)
     .where(and(eq(agents.id, agentId), eq(agents.active, true), ne(agents.role, "admin")));
   if (!agent) throw new Error("Pilih agen yang akan diwakili aplikasi ini.");
+  // A per-agent URL (/api/mcp/<slug>) can only be approved as that agent.
+  if (check.lockedRole && agent.role !== check.lockedRole) throw new Error("URL konektor ini khusus untuk agen lain.");
 
   const code = await createAuthorizationCode({
     clientId: check.client.clientId,
