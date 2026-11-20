@@ -11,3 +11,6 @@ export * from "./research-insights";
 export * from "./reels-publishing";
 export * from "./automation";
 export * from "./scout";
+export * from "./outputs";
+export * from "./flow";
+export * from "./triggers";

@@ -185,6 +185,25 @@ Otomasi tetap berbasis MCP: setiap agen berjalan sebagai **scheduled task** di a
 4. **Publikasi otomatis** per platform: hanya berlaku bila sakelar aktif **dan** syarat kalibrasi tercapai saat itu (≥ 50 keputusan manusia, ≥ 90% disetujui, ≥ 80% diterima platform). Item yang disetujui otomatis ditandai `autoApproved` dan tidak dihitung sebagai keputusan manusia di statistik kalibrasi. Bila kalibrasi turun, approval manual otomatis berlaku lagi.
 5. **Cron** `GET /api/cron/tick` dengan `Authorization: Bearer <CRON_SECRET>`, tiap 15–30 menit. Mengecek: job macet di tahap agen, agen tidak aktif, slot riset terlewat, anggaran habis, siklus berhenti, kalibrasi siap mode otomatis, dan approval yang menunggu lebih dari sehari. Setiap masalah jadi notifikasi sekali saja (kunci dedupe), plus webhook HTTPS opsional (Discord/Slack) untuk peringatan dan kritis. Tombol "Jalankan Pengecekan Sekarang" di halaman Agen melakukan hal yang sama.
 
+## Pemicu agen (webhook)
+
+Selain jadwal di dalam aplikasi AI, studio bisa membangunkan agen sendiri. Atur di halaman **Agen** → kartu agen → **Pemicu otomatis**: URL webhook, signing secret (opsional), dan jam jalan (WIB).
+
+- Cron tick (`/api/cron/tick`, tiap 15–30 menit) mengecek jam jalan tiap agen. Pada jam itu studio mengirim `POST` JSON bertanda tangan [Standard Webhooks](https://www.standardwebhooks.com/) (`webhook-id`, `webhook-timestamp`, `webhook-signature: v1,<HMAC-SHA256>`).
+- Agen hanya dibangunkan bila ada pekerjaan (jadwal riset untuk Rina-Scout/Rina, antrian job untuk yang lain). Setiap jam jalan dikirim paling banyak sekali; jam yang terlewat lebih dari 3 jam tidak dikirim.
+- Isi payload: `agent`, `run`, `day`, `scheduledFor`, `mcpUrl` (URL MCP khusus agen, butuh `STUDIO_PUBLIC_URL`), `instruction`, dan `due` (daftar pekerjaan).
+- Secret disimpan terenkripsi (AES-256-GCM, kunci dari `STUDIO_SESSION_SECRET`). Mengganti `STUDIO_SESSION_SECRET` membuat secret harus diisi ulang.
+- Pengiriman gagal muncul sebagai notifikasi. Riwayat 6 pengiriman terakhir ada di kartu agen; **Kirim Uji** mengirim satu pemicu sekarang.
+
+**Grok (Rina-Scout).** Di grok.com buat Automation dengan konektor MCP `…/api/mcp/rina-scout` dan prompt dari kit Rina-Scout, lalu tambahkan pemicu webhook. Salin URL webhook dan secret `whsec_…` ke form pemicu, jam `06:30, 12:30, 18:30`. Jadwal internal Automation tidak perlu diaktifkan.
+
+**Aplikasi lain.** ChatGPT dan Gemini (gemini.google.com) belum bisa dipicu dari luar (per November 2026). Claude.ai juga tidak. Untuk agen-agen itu, pemicu webhook bisa diarahkan ke n8n/Make/Zapier yang memanggil API model, atau tetap memakai jadwal di aplikasinya.
+
+## Alur harian dan hasil kerja
+
+- **Alur harian** (`/dashboard/flow`): tahap per hari dari pindai tren sampai terbit, dengan status selesai/berjalan/terhenti/menunggu, plus kalender sebulan (warna = hasil hari itu, garis = tahap terjauh, angka = siklus terbit/dibuka). Reels punya tahap storyboard tambahan.
+- **Hasil kerja** (`/dashboard/outputs`): output tiap agen (pindaian, riset, laporan, ide, review, aset dengan pratinjau, metadata). Pilih satu agen, atau beberapa untuk dibandingkan per kolom; ada filter platform dan rentang 1/7/30 hari.
+
 ## Dashboard
 
 Panel admin dengan **sidebar** dan **topbar**:

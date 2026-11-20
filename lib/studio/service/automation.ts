@@ -19,6 +19,7 @@ import { randomBytes } from "node:crypto";
 import { StudioError, hashToken } from "./core";
 import { calibrationStats } from "./publishing";
 import { getResearchSchedule } from "./research-insights";
+import { dispatchTriggers } from "./triggers";
 
 const SETTINGS_KEY = "automation";
 const PLATFORMS: Platform[] = ["adobe_stock", "facebook_reels"];
@@ -271,6 +272,21 @@ export async function runAutomationTick(now = new Date()) {
     });
   }
 
+  // 7. Wake agents whose run time has come (webhook triggers, e.g. Grok Automations).
+  const triggers = await dispatchTriggers(now).catch((e) => {
+    console.error("[cron] triggers failed", e);
+    return [];
+  });
+  for (const r of triggers.filter((x) => x.status === "failed")) {
+    await push({
+      key: `trigger:${r.runKey}`,
+      severity: "warn",
+      title: `Pemicu ${r.role} gagal dikirim`,
+      body: `${r.detail ?? "Tanpa detail"}. Cek URL dan secret webhook di halaman Agen.`,
+      href: "/dashboard/agents",
+    });
+  }
+
   // Housekeeping: activity older than 30 days.
   await db.delete(agentActivity).where(lt(agentActivity.createdAt, new Date(now.getTime() - 30 * 24 * 3_600_000)));
 
@@ -278,7 +294,7 @@ export async function runAutomationTick(now = new Date()) {
     .insert(settings)
     .values({ key: "lastTick", value: now.toISOString() })
     .onConflictDoUpdate({ target: settings.key, set: { value: now.toISOString(), updatedAt: now } });
-  return { ranAt: now.toISOString(), newNotifications: created };
+  return { ranAt: now.toISOString(), newNotifications: created, triggers };
 }
 
 // ---------------------------------------------------------------------------

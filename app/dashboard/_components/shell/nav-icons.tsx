@@ -35,6 +35,20 @@ export const NAV_ICONS: Record<string, (p: SVGProps<SVGSVGElement>) => React.Rea
       <path d="m10.5 9.5 4 2.5-4 2.5z" />
     </svg>
   ),
+  "/dashboard/flow": (p) => (
+    <svg {...base} {...p}>
+      <circle cx="5" cy="6" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="19" cy="18" r="2" />
+      <path d="M7 6h3a2 2 0 0 1 2 2v2M14 12h3a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
+  "/dashboard/outputs": (p) => (
+    <svg {...base} {...p}>
+      <rect x="4" y="4.5" width="16" height="15" rx="2.5" />
+      <path d="M8 9h8M8 12.5h8M8 16h5" />
+    </svg>
+  ),
   "/dashboard/research": (p) => (
     <svg {...base} {...p}>
       <circle cx="10.5" cy="10.5" r="6" />
