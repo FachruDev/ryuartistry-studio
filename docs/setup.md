@@ -197,7 +197,9 @@ Selain jadwal di dalam aplikasi AI, studio bisa membangunkan agen sendiri. Atur 
 
 **Grok (Rina-Scout).** Di grok.com buat Automation dengan konektor MCP `…/api/mcp/rina-scout` dan prompt dari kit Rina-Scout, lalu tambahkan pemicu webhook. Salin URL webhook dan secret `whsec_…` ke form pemicu, jam `06:30, 12:30, 18:30`. Jadwal internal Automation tidak perlu diaktifkan.
 
-**Aplikasi lain.** ChatGPT dan Gemini (gemini.google.com) belum bisa dipicu dari luar (per November 2026). Claude.ai juga tidak. Untuk agen-agen itu, pemicu webhook bisa diarahkan ke n8n/Make/Zapier yang memanggil API model, atau tetap memakai jadwal di aplikasinya.
+**Claude (Rina, Lukas, Kechlyn, Linda reels).** Pakai routine Claude Code (claude.ai/code → scheduled tasks): buat tugas dengan prompt dari kit agen dan konektor MCP agen itu, lalu tambahkan trigger **API** dan klik Generate token. Isi form pemicu dengan Fire URL (`https://api.anthropic.com/v1/claude_code/routines/trig_…/fire`) dan token `sk-ant-oat01-…` di kolom secret. Studio mengenali URL ini dan mengirim `Authorization: Bearer <token>` + `anthropic-version` dengan body `{"text": "<payload JSON>"}`; run menerimanya sebagai blok `<routine-fire-payload>`. Token hanya tampil sekali dan Generate ulang mencabut token lama. Batas Anthropic: 30 fire per tugas per jam.
+
+**Aplikasi lain.** ChatGPT dan Gemini (gemini.google.com) belum bisa dipicu dari luar (per November 2026). Untuk agen-agen itu, pemicu webhook bisa diarahkan ke n8n/Make/Zapier yang memanggil API model, atau tetap memakai jadwal di aplikasinya.
 
 ## Alur harian dan hasil kerja
 

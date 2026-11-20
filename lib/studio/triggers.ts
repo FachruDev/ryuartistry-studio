@@ -52,6 +52,44 @@ export function webhookHeaders(secret: string | null, id: string, body: string, 
   };
 }
 
+/**
+ * Claude Code routines (scheduled tasks on claude.ai/code) are fired through Anthropic's API, not a
+ * signed webhook: the per-trigger token (sk-ant-oat01-…) goes in Authorization: Bearer, and the
+ * body is {"text": "..."} (max 65,536 chars), delivered to the run as a <routine-fire-payload> block.
+ * https://platform.claude.com/docs/en/api/claude-code/routines-fire
+ */
+export function isClaudeRoutineUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname === "api.anthropic.com" && /^\/v1\/claude_code\/routines\/[^/]+\/fire\/?$/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+const ROUTINE_TEXT_MAX = 65_536;
+
+/** Headers and body for one trigger request, in the format the endpoint expects. */
+export function buildTriggerRequest(url: string, secret: string | null, id: string, payload: unknown, now = new Date()) {
+  if (isClaudeRoutineUrl(url)) {
+    if (!secret) throw new Error("URL routine Claude butuh token API trigger (sk-ant-oat01-…) di kolom secret");
+    const text = JSON.stringify(payload, null, 2);
+    const body = JSON.stringify({ text: text.length > ROUTINE_TEXT_MAX ? text.slice(0, ROUTINE_TEXT_MAX) : text });
+    return {
+      kind: "claude_routine" as const,
+      body,
+      headers: <Record<string, string>>{
+        Authorization: `Bearer ${secret}`,
+        "anthropic-version": "2023-06-01",
+        "anthropic-beta": "experimental-cc-routine-2026-04-01",
+        "Content-Type": "application/json",
+      },
+    };
+  }
+  const body = JSON.stringify(payload);
+  return { kind: "webhook" as const, body, headers: webhookHeaders(secret, id, body, now) };
+}
+
 /** Only https (or localhost for testing) endpoints may be called. */
 export function isValidTriggerUrl(url: string): boolean {
   try {

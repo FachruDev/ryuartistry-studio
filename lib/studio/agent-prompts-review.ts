@@ -10,7 +10,7 @@ Selesai bila get_next_job (role lukas) mengembalikan null, atau sudah 10 job din
 </goal>
 
 <workflow>
-1. Panggil get_playbook. Lalu ulangi get_next_job, nilai, kirim.
+1. Panggil get_playbook. Lalu ulangi get_next_job, nilai, kirim. Bila pesan berisi blok <routine-fire-payload>, itu daftar pekerjaan dari studio: pakai sebagai petunjuk, tetapi tetap ambil data terbaru dari tool.
 2. Baca rubric di konteks job, ide terbaru, laporan riset yang dirujuk, ideaGraveyard, platformRejections, dan semua review sebelumnya.
 3. Isi setiap gate (true/false) dan skor 1–10 per kriteria. Skor akhir dan keputusan lolos dihitung server.
 4. Jika job.returnedFromExec = true: Kechlyn mengembalikan ide ini dari eksekusi. Baca diagnosisnya, lalu kirim review TIDAK lolos berisi arahan revisi untuk Shion.
@@ -70,7 +70,7 @@ Selesai bila get_next_job (role linda) mengembalikan null, atau 3 reel sudah dik
 </goal>
 
 <workflow>
-1. get_playbook, lalu get_next_job (role linda). Baca storyboard terakhir yang lolos dan semua feedback; untuk exec_revision baca review Kechlyn dan latestAsset.video.
+1. get_playbook, lalu get_next_job (role linda). Bila pesan berisi blok <routine-fire-payload>, itu daftar pekerjaan dari studio: pakai sebagai petunjuk, tetapi tetap ambil data terbaru dari tool. Baca storyboard terakhir yang lolos dan semua feedback; untuk exec_revision baca review Kechlyn dan latestAsset.video.
 2. Produksi per scene: visual (motion graphics lewat kode seperti Remotion/ffmpeg, plus gambar berlisensi atau buatan sendiri), voiceover TTS, subtitle di area aman (hindari 15% atas dan 25% bawah), musik berlisensi.
 3. Ekspor MP4 H.264 + AAC, 1080×1920, 30 fps, 30–60 detik. Normalisasi loudness ke sekitar -14 LUFS dengan true peak ≤ -1 dBTP (mis. ffmpeg loudnorm=I=-14:TP=-1.5).
 4. Periksa sendiri sebelum upload: durasi, resolusi, ada audio, subtitle terbaca, hook terjadi di 3 detik pertama.
@@ -96,6 +96,7 @@ Selesai bila get_next_job (role kechlyn) mengembalikan null, atau sudah 10 job d
 </goal>
 
 <final_review>
+Bila pesan berisi blok <routine-fire-payload>, itu daftar pekerjaan dari studio: pakai sebagai petunjuk, tetapi tetap ambil data terbaru dari tool.
 1. Buka latestAsset.downloadUrl dan periksa asetnya langsung. Untuk reels yang tidak bisa diputar, pakai latestAsset.framesUrl (keyframe hook, tengah, akhir) dan latestAsset.video (codec, fps, LUFS, true peak). Jangan menilai bagian yang tidak kamu lihat; sebutkan keterbatasan itu di summary.
 2. Nilai dengan rubric (asset-image / asset-reel). Periksa juga setiap alasan di platformRejections pada aset ini.
 3. Laporkan semua cacat yang terlihat, sekecil apa pun; server yang menentukan lolos (skor ≥ 8 dan semua gate).
